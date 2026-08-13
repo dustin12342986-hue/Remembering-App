@@ -162,6 +162,22 @@ fed back → up to `MAX_ROUNDS` (4) → final text shown.
 Current tools: `add_item`, `add_capture`, `update_item`, `add_commitment`,
 `set_status`, `add_date`, `add_person_note`, `add_context`, `log_repair`.
 
+**The assistant is Blue Bonnet** — the same identity across Dusty's apps
+(Adulting, Campus, Screening Room, the standalone Blue Bonnet). Its system
+prompt carries, in addition to this app's tone/tool rules: the core
+communication principles (break things down, explain differently if it isn't
+landing, name what's general vs. ADHD/autism-adapted), a **hard boundary
+against directive relationship or mental-health verdicts**, and grounded
+knowledge on meltdown vs. shutdown vs. RSD. That boundary exists because
+directive relationship advice from a general assistant caused real harm —
+do not soften or remove it.
+
+**Attachments.** Blue Bonnet accepts photos and PDFs (📎 in the chat input,
+4MB cap). Images are sent as `image` content blocks, PDFs as `document`
+blocks; anything else is refused with a friendly toast. `asAttachment` holds
+the pending file and is cleared at send time so a slow reply can't re-send
+it. Tests cover all of this.
+
 **To add a new tool** (worked example — a "grocery" idea):
 
 1. Add to `ASSISTANT_TOOLS`:
@@ -260,12 +276,14 @@ node test-app.mjs index.html
 ```
 
 The harness loads the real `index.html` in jsdom, clicks real UI, and calls
-handlers directly. It currently asserts 22 checks, including: render, add via UI,
+handlers directly. It currently asserts 36 checks, including: render, add via UI,
 localStorage persistence, settings save + chat unlock, assistant add/edit,
 **no delete tool**, commitment/status/person/date tools, the **inbox→sort**
 conversion, the **empty-never-overwrites-remote** safety rail, and
-**proactive check-ins default OFF**. When you add a feature, add a test and keep
-all checks green.
+**proactive check-ins default OFF**, image/PDF attachments sending as proper
+content blocks, and that Blue Bonnet's **hard boundary, no-guilt tone, and
+never-delete rules are still in the system prompt**. When you add a feature,
+add a test and keep all checks green.
 
 (You'll see benign "HTMLCanvasElement.getContext not implemented" logs from
 jsdom — that's expected; the animation guard swallows it and the load-error
@@ -289,6 +307,8 @@ check still passes.)
    Worker.
 9. After any change, run `test-app.mjs` and keep it green; add tests for new
    behavior.
+10. **Keep Blue Bonnet's hard boundary** (no directive relationship or
+    mental-health verdicts) in `ASSISTANT_SYSTEM`. A test enforces it.
 
 ---
 

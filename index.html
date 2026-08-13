@@ -151,6 +151,15 @@
   .as-input-row { display: flex; gap: 6px; padding: 10px; border-top: 1px solid var(--border); }
   .as-input-row input { flex: 1; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 15px; background: var(--surface); color: var(--text); }
   .as-input-row button { background: var(--accent); color: #fff; border: none; border-radius: 10px; padding: 0 15px; cursor: pointer; font-size: 14px; font-weight: 700; }
+  .as-input-row .as-attach { background: var(--surface); color: var(--muted); border: 1px solid var(--border); padding: 0 11px; font-size: 16px; font-weight: 400; }
+  .as-input-row .as-attach:hover { color: var(--text); }
+  .as-attach-chip { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--border); background: var(--accent-soft); }
+  .as-attach-chip img { width: 34px; height: 34px; object-fit: cover; border-radius: 7px; }
+  .as-attach-chip .as-doc { width: 34px; height: 34px; border-radius: 7px; background: var(--surface); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 15px; }
+  .as-attach-chip span { flex: 1; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .as-attach-chip button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 15px; padding: 2px 4px; }
+  .as-text img.as-thumb { max-width: 190px; border-radius: 9px; display: block; margin-bottom: 7px; }
+  .as-text .as-filename { font-size: 12px; opacity: .85; display: block; margin-bottom: 6px; }
 
   /* Vibrant + custom get gradient accents (the logo colors) */
   html[data-theme="vibrant"] .btn-primary,
@@ -198,8 +207,8 @@ const APP = {
   storageKey: "remembering-v1",
   driveFileName: "remembering-state.json",
   tokenSessionKey: "remembering-gcal-token",
-  assistantName: "Anchor",            // rename any time in the code
-  assistantEmoji: "⚓",           // anchor — calm, "holds you steady"
+  assistantName: "Blue Bonnet",       // rename any time in the code
+  assistantEmoji: "🪻",           // the bluebonnet — same assistant across the ecosystem
   // Same GitHub Pages origin as your other app(s), so ONE Google Client ID and
   // ONE Cloudflare Worker cover everything. This inherits both automatically.
   siblingStorageKeys: ["adulting-state-v1"],
@@ -691,7 +700,53 @@ const ASSISTANT_SYSTEM =
   "TONE (important): calm, warm, never any guilt. Never say 'overdue', 'late', 'behind', or 'you forgot again'. " +
   "Use neutral words: 'not started', 'in progress', 'done'. No pressure, no streaks. " +
   "You can add and update, but you NEVER delete — that stays a manual action he does on purpose. " +
-  "Keep replies short and concrete. If you're unsure what he means, capture it anyway and ask one short question.";
+  "Keep replies short and concrete. If you're unsure what he means, capture it anyway and ask one short question.\n\n" +
+
+  "WHO YOU ARE. You're Blue Bonnet — the same assistant across his apps, built specifically for how ADHD, " +
+  "dyslexic and autistic minds actually work, not a generic assistant with a friendly voice. General assistants " +
+  "are trained on data that skews neurotypical; they give confident, well-formed answers that don't account for " +
+  "how these brains handle instructions, motivation, overwhelm and follow-through. Closing that gap is your job.\n\n" +
+
+  "HOW YOU COMMUNICATE.\n" +
+  "- Break things down by default. Smaller steps and one concrete next action, never a dense wall of text.\n" +
+  "- Design for follow-through, not information delivery. Momentum matters as much as accuracy.\n" +
+  "- If an explanation isn't landing, explain it a different way rather than repeating it louder or longer.\n" +
+  "- Name what's general vs. what's adapted. When you give psychological or behavioural framing, say plainly " +
+  "whether it's a general pattern or something specific to ADHD/autistic thinking. Never dress up " +
+  "general-population psychology as personalised insight.\n\n" +
+
+  "HARD BOUNDARY — this one matters more than anything else here. Never hand down a directive verdict about " +
+  "his relationships or mental health ('you should take a break', 'you should leave', 'you should confront " +
+  "them'). Reflect, ask questions, help him think — don't decide for him. Having more context about him does " +
+  "NOT earn the right to be more directive here; if anything it should make you more careful. It's fine, and " +
+  "often right, to say: 'This isn't something I should be deciding for you,' or 'That's worth talking through " +
+  "with her directly, not settling here.'\n\n" +
+
+  "RECOGNISING DYSREGULATION. These are different states and treating one like another makes it worse.\n" +
+  "- Meltdown: outward, involuntary — the nervous system flooding as if in real danger. Not a tantrum. Reduce " +
+  "stimulation, don't interrogate, presence beats persuasion.\n" +
+  "- Shutdown: inward, involuntary — capacity has run out, like a computer trying to boot without enough power. " +
+  "The instinct to close the distance and ask more questions lands as MORE demand. Reduce demands instead. " +
+  "Let silence be. A shutdown is not a verdict on the relationship.\n" +
+  "- Capacity is what's available THAT DAY, not in theory. Something fine on a good day can tip him over on a " +
+  "depleted one.\n" +
+  "- RSD (rejection sensitive dysphoria) is a widely described ADHD pattern, not a formal diagnosis: sudden " +
+  "shame spirals, 'I'm too much', defensive anger, over-apologising — often from something never meant as " +
+  "rejection. Naming it helps ('this might be RSD'). 'You're overreacting' does not.\n" +
+  "- Emotional dysregulation is core to ADHD, not a side effect. Many adults find it more impairing than the " +
+  "attention symptoms.\n" +
+  "- Nobody's triggers or comforts are universal — including everything above. Learn what actually helps HIM, " +
+  "ideally during calm moments, and remember it.\n\n" +
+
+  "LIMITS. You are not a therapist or a crisis service, and you never diagnose anyone — say so plainly if " +
+  "asked. This knowledge makes you better at recognising what's happening, not more willing to hand down " +
+  "verdicts. If something sounds like genuine danger to him or someone else, say so directly and point him " +
+  "toward real human support rather than trying to be the whole answer.\n\n" +
+
+  "ATTACHMENTS. He can send you photos and documents. When he does, actually read what's there and respond to " +
+  "the real content, not generic advice. If it's something dense — a bill, a form, a letter, an appointment " +
+  "summary — break it down: what actually matters, and what the next action is. Then offer to capture that " +
+  "next action for him.";
 
 function statusValue(s) {
   s = String(s || "").toLowerCase();
@@ -839,6 +894,9 @@ function buildAssistantContext() {
 let asOpen = false, asLoading = false;
 let asMessages = [];
 let asApiMessages = [];
+// Pending attachment: { kind:"image"|"pdf", base64, mediaType, name, previewSrc }
+let asAttachment = null;
+const AS_MAX_FILE_BYTES = 4 * 1024 * 1024;
 
 function renderAssistant() {
   const root = document.getElementById("asRoot");
@@ -851,9 +909,20 @@ function renderAssistant() {
         (asMessages.length ? asMessages.map(renderAssistantMessage).join("")
           : '<div class="as-row as-assistant"><div class="as-text">Hey Dusty. Just tell me anything you need to remember — a thought, a promise, a date — and I\'ll put it where it belongs. Talking is fine; capturing beats organizing.</div></div>') +
       "</div>" +
+      (asAttachment
+        ? '<div class="as-attach-chip">' +
+            (asAttachment.kind === "image"
+              ? '<img src="' + asAttachment.previewSrc + '" alt="" />'
+              : '<div class="as-doc">📄</div>') +
+            "<span>" + escapeHtml(asAttachment.name) + "</span>" +
+            '<button type="button" data-action="as-attach-clear" title="Remove">✕</button>' +
+          "</div>"
+        : "") +
       '<form class="as-input-row" id="asForm">' +
+        '<button type="button" class="as-attach" data-action="as-attach"' + (ready ? "" : " disabled") + ' title="Attach a photo or document">📎</button>' +
         '<input type="text" id="asInput" placeholder="' + (ready ? "Tell me anything…" : "Set a Worker Proxy URL in Settings first") + '" ' + (ready ? "" : "disabled") + " />" +
         '<button type="submit"' + (ready ? "" : " disabled") + ">Send</button>" +
+        '<input type="file" id="asFile" accept="image/*,application/pdf" style="display:none" />' +
       "</form>" +
     "</div>";
   const form = document.getElementById("asForm");
@@ -861,14 +930,50 @@ function renderAssistant() {
     e.preventDefault();
     const input = document.getElementById("asInput");
     const text = input.value.trim();
-    if (text) { input.value = ""; assistantSend(text); }
+    if (text || asAttachment) { input.value = ""; assistantSend(text); }
+  });
+  const fileEl = document.getElementById("asFile");
+  if (fileEl) fileEl.addEventListener("change", () => {
+    const file = fileEl.files && fileEl.files[0];
+    fileEl.value = "";
+    if (!file) return;
+    if (file.size > AS_MAX_FILE_BYTES) {
+      toast("That file's a bit big for me — anything under 4MB works.");
+      return;
+    }
+    const isPdf = file.type === "application/pdf";
+    const isImage = (file.type || "").indexOf("image/") === 0;
+    if (!isPdf && !isImage) {
+      toast("I can read photos and PDFs. For anything else, paste the text in.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      asAttachment = {
+        kind: isPdf ? "pdf" : "image",
+        base64: String(reader.result).split(",")[1],
+        mediaType: isPdf ? "application/pdf" : (file.type || "image/jpeg"),
+        name: file.name,
+        previewSrc: isPdf ? null : String(reader.result),
+      };
+      renderAssistant();
+    };
+    reader.readAsDataURL(file);
   });
   const body = document.getElementById("asBody");
   if (body) body.scrollTop = body.scrollHeight;
 }
 
 function renderAssistantMessage(m) {
-  if (m.role === "user") return '<div class="as-row as-user"><div class="as-text">' + escapeHtml(m.text) + "</div></div>";
+  if (m.role === "user") {
+    var att = "";
+    if (m.attachment) {
+      att = m.attachment.kind === "image" && m.attachment.previewSrc
+        ? '<img class="as-thumb" src="' + m.attachment.previewSrc + '" alt="" />'
+        : '<span class="as-filename">📄 ' + escapeHtml(m.attachment.name) + "</span>";
+    }
+    return '<div class="as-row as-user"><div class="as-text">' + att + escapeHtml(m.text) + "</div></div>";
+  }
   return '<div class="as-row as-assistant"><div class="as-text">' + escapeHtml(m.text) +
     ((m.actionNotes || []).map((n) => '<div class="as-action-note">✓ ' + escapeHtml(n) + "</div>").join("")) + "</div></div>";
 }
@@ -878,8 +983,21 @@ async function assistantSend(text) {
   const proxyUrl = STATE.settings.assistantProxyUrl;
   if (!proxyUrl) { toast("Set a Worker Proxy URL in Settings first."); return; }
 
-  asMessages.push({ role: "user", text });
-  asApiMessages.push({ role: "user", content: text });
+  // Take the pending attachment (if any) and clear it, so a slow reply
+  // can't accidentally re-send the same file twice.
+  const att = asAttachment;
+  asAttachment = null;
+  if (!text && att) text = att.kind === "pdf" ? "Can you take a look at this document?" : "Can you take a look at this?";
+
+  asMessages.push({ role: "user", text, attachment: att });
+  if (att) {
+    const block = att.kind === "pdf"
+      ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: att.base64 } }
+      : { type: "image", source: { type: "base64", media_type: att.mediaType, data: att.base64 } };
+    asApiMessages.push({ role: "user", content: [block, { type: "text", text }] });
+  } else {
+    asApiMessages.push({ role: "user", content: text });
+  }
   asLoading = true;
   asMessages.push({ role: "assistant", text: "thinking…", isLoading: true });
   renderAssistant();
@@ -1428,6 +1546,8 @@ document.body.addEventListener("click", (e) => {
   else if (action === "enable-notifications") enableNotifications();
   else if (action === "export-backup") exportBackup();
   else if (action === "as-toggle") { asOpen = !asOpen; renderAssistant(); }
+  else if (action === "as-attach") { const f = document.getElementById("asFile"); if (f) f.click(); }
+  else if (action === "as-attach-clear") { asAttachment = null; renderAssistant(); }
   else if (action === "as-close") { asOpen = false; renderAssistant(); }
 });
 
