@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Remembering</title>
+
+<!-- ===========================================================================
+     REMEMBERING — built on the single-file App Starter Kit.
+     An external working-memory app for an ADHD brain: capture anything the
+     instant it happens, keep per-person notes, track promises with no date,
+     surface the right thing at the right moment, and get one calm daily look.
+
+     All the Google / Drive-sync / assistant / notification / backup plumbing
+     is unchanged from the starter. The app-specific parts (state shape, UI,
+     assistant tools) are the Working Memory bits.
+     =========================================================================== -->
+
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<meta name="theme-color" content="#4f8a86">
+<style>
+  /* Calm, low-saturation palette. One accent. No guilt-red anywhere:
+     "needs attention" is a soft amber, never an alarm color. */
+  :root {
+    --bg: #f3f5f7; --surface: #ffffff; --surface-2: #eef1f4;
+    --border: #e0e6ea; --text: #26313a; --muted: #5b6b78; --faint: #8a99a5;
+    --accent: #4f8a86; --accent-soft: #e4efee;
+    --attention: #b8863b; --attention-soft: #f6efe2;
+    --ok: #4f8a86; --ok-bg: #e4efee;
+    --danger: #96706f; --danger-bg: #f0e7e6;   /* muted, not alarming */
+    --radius: 14px; --shadow: 0 1px 3px rgba(20,30,50,0.06);
+  }
+  html[data-theme="dark"] {
+    --bg: #161b1f; --surface: #1e252a; --surface-2: #232c32;
+    --border: #2c363d; --text: #e6ecef; --muted: #a9b6bf; --faint: #7d8b95;
+    --accent: #6fb3ad; --accent-soft: #23322f;
+    --attention: #d6a860; --attention-soft: #322a1c;
+    --ok: #6fb3ad; --ok-bg: #23322f;
+    --danger: #b58f8e; --danger-bg: #2e2523;
+    --shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+  @media (prefers-color-scheme: dark) {
+    html[data-theme="auto"] {
+      --bg: #161b1f; --surface: #1e252a; --surface-2: #232c32;
+      --border: #2c363d; --text: #e6ecef; --muted: #a9b6bf; --faint: #7d8b95;
+      --accent: #6fb3ad; --accent-soft: #23322f;
+      --attention: #d6a860; --attention-soft: #322a1c;
+      --ok: #6fb3ad; --ok-bg: #23322f;
+      --danger: #b58f8e; --danger-bg: #2e2523;
+      --shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text); font-size: 17px; line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 22px 18px 96px; }
+  h1 { font-size: 25px; margin: 0; letter-spacing: -0.01em; }
+  .tagline { color: var(--faint); font-size: 14px; margin: 2px 0 16px; }
+  .muted { color: var(--muted); }
+  .faint { color: var(--faint); }
+  .hint { color: var(--faint); font-size: 12.5px; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row.between { justify-content: space-between; }
+  .wrapline { flex-wrap: wrap; }
+  .hr { height: 1px; background: var(--border); margin: 14px 0; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 15px 17px; box-shadow: var(--shadow); margin-bottom: 11px; }
+  .card.accent { border-color: var(--accent); }
+  .card .maintext { font-size: 17px; line-height: 1.45; }
+
+  .btn-primary { background: var(--accent); color: #fff; border: none; padding: 11px 18px; border-radius: 10px; font-size: 15px; cursor: pointer; font-weight: 700; font-family: inherit; }
+  .btn-sm { border: 1px solid var(--border); background: var(--surface); color: var(--text); padding: 7px 13px; border-radius: 9px; font-size: 13.5px; cursor: pointer; font-family: inherit; }
+  .btn-ghost { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; font-family: inherit; }
+  .iconbtn { border: 1px solid var(--border); background: var(--surface); color: var(--muted); width: 40px; height: 40px; border-radius: 10px; cursor: pointer; font-size: 16px; }
+
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12.5px; font-weight: 700; color: var(--muted); margin-bottom: 4px; }
+  .field input, .field select, .field textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 16px; font-family: inherit; background: var(--surface); color: var(--text); }
+  .field textarea { min-height: 84px; resize: vertical; }
+
+  .status-pill { font-size: 12.5px; padding: 3px 12px; border-radius: 999px; white-space: nowrap; cursor: pointer; border: none; font-family: inherit; }
+  .status-pill.notstarted { background: var(--surface-2); color: var(--muted); }
+  .status-pill.inprogress { background: var(--attention-soft); color: var(--attention); }
+  .status-pill.done { background: var(--ok-bg); color: var(--ok); }
+  .status-pill.none { background: var(--surface-2); color: var(--muted); cursor: default; }
+
+  .top-nav { display: flex; gap: 4px; margin: 4px 0 18px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
+  .nav-tab { border: none; background: none; color: var(--muted); font-size: 14.5px; font-weight: 700; padding: 8px 10px; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; font-family: inherit; }
+  .nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .section-title { font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--faint); margin: 20px 0 8px; }
+  .section-title:first-child { margin-top: 4px; }
+  .empty { color: var(--faint); font-size: 15px; padding: 8px 0; }
+  .ex { color: var(--faint); font-size: 12.5px; font-style: italic; margin-top: 2px; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); margin-right: 9px; vertical-align: middle; }
+  .dot.attn { background: var(--attention); }
+  .dot.ok { background: var(--accent); }
+
+  .footer-links { text-align: center; margin-top: 26px; }
+  .footer-links a { color: var(--faint); font-size: 13px; cursor: pointer; text-decoration: none; }
+  .footer-links a:hover { color: var(--accent); }
+
+  /* Modal */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(20,30,50,0.45); display: flex; align-items: center; justify-content: center; z-index: 80; padding: 18px; }
+  .modal { background: var(--surface); border-radius: 16px; padding: 20px; max-width: 520px; width: 100%; max-height: 86vh; overflow-y: auto; }
+  .modal h3 { margin: 0 0 14px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+
+  /* Toast */
+  #toastRoot { position: fixed; left: 50%; transform: translateX(-50%); bottom: 90px; z-index: 95; }
+  .toast { background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; box-shadow: 0 4px 14px rgba(20,30,50,0.3); }
+
+  /* Assistant chat widget */
+  .as-bubble { position: fixed; right: 18px; bottom: 18px; min-width: 54px; height: 54px; padding: 0 18px; border-radius: 27px; background: var(--accent); color: #fff; border: none; font-size: 15px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(20,30,50,0.28); z-index: 70; display: flex; align-items: center; gap: 8px; font-family: inherit; }
+  .as-panel { position: fixed; right: 18px; bottom: 82px; width: 360px; max-width: calc(100vw - 36px); height: 480px; max-height: calc(100vh - 120px); background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 8px 30px rgba(20,30,50,0.22); z-index: 70; display: none; flex-direction: column; overflow: hidden; }
+  .as-panel.open { display: flex; }
+  .as-header { background: var(--accent); color: #fff; padding: 12px 15px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; }
+  .as-header button { background: none; border: none; color: #fff; font-size: 16px; cursor: pointer; }
+  .as-body { flex: 1; overflow-y: auto; padding: 13px; display: flex; flex-direction: column; gap: 8px; }
+  .as-row { display: flex; }
+  .as-row.as-user { justify-content: flex-end; }
+  .as-text { max-width: 86%; padding: 9px 13px; border-radius: 13px; font-size: 14px; line-height: 1.45; white-space: pre-wrap; }
+  .as-row.as-user .as-text { background: var(--accent); color: #fff; border-bottom-right-radius: 3px; }
+  .as-row.as-assistant .as-text { background: var(--accent-soft); color: var(--text); border-bottom-left-radius: 3px; }
+  .as-action-note { margin-top: 6px; font-size: 11.5px; color: var(--ok); }
+  .as-input-row { display: flex; gap: 6px; padding: 10px; border-top: 1px solid var(--border); }
+  .as-input-row input { flex: 1; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 15px; background: var(--surface); color: var(--text); }
+  .as-input-row button { background: var(--accent); color: #fff; border: none; border-radius: 10px; padding: 0 15px; cursor: pointer; font-size: 14px; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<div class="wrap" id="app"></div>
+<div id="modalRoot"></div>
+<div id="toastRoot"></div>
+<div id="asRoot"></div>
+
+<script>
+"use strict";
+
+/* ===========================================================================
+   1. APP CONFIG
+   =========================================================================== */
+const APP = {
+  name: "Remembering",
+  storageKey: "remembering-v1",
+  driveFileName: "remembering-state.json",
+  tokenSessionKey: "remembering-gcal-token",
+  assistantName: "Anchor",            // rename any time in the code
+  assistantEmoji: "⚓",           // anchor — calm, "holds you steady"
+  // Same GitHub Pages origin as your other app(s), so ONE Google Client ID and
+  // ONE Cloudflare Worker cover everything. This inherits both automatically.
+  siblingStorageKeys: ["adulting-state-v1"],
+};
+
+/* ===========================================================================
+   2. STATE — Working Memory data
+   Everything lives in ONE `items` array (the sync safety-rail and tests depend
+   on that). Each item has a `kind`:
+     inbox      { text }
+     commitment { text, who, status }         status: not started|in progress|done
+     date       { text, date (YYYY-MM-DD), leaveBy, eventId }
+     person     { person, section, text }      section: promise|told|situation|pref
+     context    { list, text }
+     repair     { text }                        PRIVATE — pattern-spotting, no guilt
+   =========================================================================== */
+function defaultState() {
+  return {
+    items: [],
+    updatedAt: Date.now(),
+    settings: {
+      googleClientId: "",
+      defaultCalendarId: "primary",
+      assistantProxyUrl: "",
+      assistantCheckins: false,      // opt-in ONLY, off on purpose
+      assistantCheckinHours: 3,
+      lastAssistantCheckinAt: null,
+      notificationsEnabled: false,
+      theme: "auto",                 // auto | light | dark
+      wifeName: "My Wife",           // label only; edit in Settings
+    },
+  };
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(APP.storageKey);
+    if (!raw) { const s = defaultState(); inheritSiblingSettings(s); return s; }
+    const parsed = JSON.parse(raw);
+    const merged = Object.assign(defaultState(), parsed);
+    merged.settings = Object.assign(defaultState().settings, parsed.settings || {});
+    merged.items = Array.isArray(parsed.items) ? parsed.items : [];
+    if (!merged.updatedAt) merged.updatedAt = Date.now();
+    inheritSiblingSettings(merged);
+    return merged;
+  } catch (e) {
+    console.error("Failed to load state, starting fresh.", e);
+    const s = defaultState(); inheritSiblingSettings(s); return s;
+  }
+}
+
+function inheritSiblingSettings(state) {
+  for (const key of APP.siblingStorageKeys || []) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const s = (JSON.parse(raw) || {}).settings || {};
+      const proxy = s.assistantProxyUrl || s.blueBonnetProxyUrl;
+      if (!state.settings.assistantProxyUrl && proxy) state.settings.assistantProxyUrl = proxy;
+      if (!state.settings.googleClientId && s.googleClientId) state.settings.googleClientId = s.googleClientId;
+    } catch (e) { /* ignore a malformed sibling */ }
+  }
+}
+
+function saveState() { localStorage.setItem(APP.storageKey, JSON.stringify(STATE)); }
+
+let STATE = loadState();
+let driveSyncTimer = null;
+let currentTab = "today";
+
+function persist() {
+  STATE.updatedAt = Date.now();
+  saveState();
+  render();
+  scheduleDrivePush();
+}
+
+function scheduleDrivePush() {
+  clearTimeout(driveSyncTimer);
+  driveSyncTimer = setTimeout(() => {
+    if (typeof DriveSync !== "undefined" && DriveSync.available()) {
+      DriveSync.push(STATE).catch((e) => console.warn("Drive push failed:", e));
+    }
+  }, 1500);
+}
+
+/* ===========================================================================
+   3. SMALL HELPERS
+   =========================================================================== */
+function uid() { return Math.random().toString(36).slice(2, 10); }
+function todayISO() { return new Date().toISOString().slice(0, 10); }
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function toast(msg) {
+  const root = document.getElementById("toastRoot");
+  root.innerHTML = '<div class="toast">' + escapeHtml(msg) + "</div>";
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { root.innerHTML = ""; }, 3200);
+}
+function openModal(html) {
+  document.getElementById("modalRoot").innerHTML =
+    '<div class="modal-backdrop" data-action="close-modal-backdrop"><div class="modal">' + html + "</div></div>";
+}
+function closeModal() { document.getElementById("modalRoot").innerHTML = ""; }
+
+function items(kind) { return STATE.items.filter((i) => i.kind === kind); }
+function fmtDate(iso) {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso + "T00:00:00");
+    return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  } catch (e) { return iso; }
+}
+function daysUntil(iso) {
+  try {
+    const d = new Date(iso + "T00:00:00");
+    const now = new Date(todayISO() + "T00:00:00");
+    return Math.round((d - now) / 86400000);
+  } catch (e) { return 9999; }
+}
+function applyTheme() {
+  const t = (STATE.settings && STATE.settings.theme) || "auto";
+  document.documentElement.setAttribute("data-theme", t);
+}
+
+/* ===========================================================================
+   4. NOTIFICATIONS  (tab-open only; opt-in — unchanged from starter)
+   =========================================================================== */
+function showNotification(title, body) {
+  if (typeof Notification === "undefined") return;
+  if (Notification.permission !== "granted") return;
+  if (STATE.settings.notificationsEnabled === false) return;
+  if (typeof document !== "undefined" && !document.hidden) return;
+  try {
+    const n = new Notification(title, { body: body, tag: APP.storageKey + "-" + title });
+    n.onclick = () => { window.focus(); n.close(); };
+  } catch (e) { console.warn("Notification failed:", e); }
+}
+function enableNotifications() {
+  if (typeof Notification === "undefined") { toast("Notifications aren't supported in this browser."); return; }
+  if (Notification.permission === "granted") { STATE.settings.notificationsEnabled = true; persist(); toast("Notifications are already on."); return; }
+  if (Notification.permission === "denied") { toast("Notifications are blocked — allow them in your browser's site settings."); return; }
+  Notification.requestPermission().then((perm) => {
+    STATE.settings.notificationsEnabled = perm === "granted";
+    persist();
+    toast(perm === "granted" ? "Notifications enabled" : "No worries — you can turn this on later.");
+    openSettingsModal();
+  });
+}
+
+/* ===========================================================================
+   5. GOOGLE SIGN-IN + CALENDAR  (unchanged from starter — do not simplify)
+   =========================================================================== */
+const Calendar = (function () {
+  const API_BASE = "https://www.googleapis.com/calendar/v3";
+  const SCOPE = "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/drive.appdata";
+  let tokenClient = null, gisLoaded = false, accessToken = null, tokenExpiresAt = 0;
+
+  function loadGisScript() {
+    if (gisLoaded) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      if (window.google && window.google.accounts && window.google.accounts.oauth2) { gisLoaded = true; return resolve(); }
+      const script = document.createElement("script");
+      script.src = "https://accounts.google.com/gsi/client";
+      script.async = true; script.defer = true;
+      script.onload = () => { gisLoaded = true; resolve(); };
+      script.onerror = () => reject(new Error("Could not load Google Identity Services (check your internet connection)."));
+      document.head.appendChild(script);
+    });
+  }
+  function restoreTokenFromSession() {
+    try {
+      const raw = sessionStorage.getItem(APP.tokenSessionKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed.expiresAt > Date.now()) { accessToken = parsed.accessToken; tokenExpiresAt = parsed.expiresAt; }
+    } catch (e) { /* ignore */ }
+  }
+  function persistToken() {
+    try { sessionStorage.setItem(APP.tokenSessionKey, JSON.stringify({ accessToken, expiresAt: tokenExpiresAt })); } catch (e) { /* ignore */ }
+  }
+  function init(clientId) {
+    restoreTokenFromSession();
+    return loadGisScript().then(() => {
+      if (!clientId) throw new Error("No Google OAuth Client ID configured yet.");
+      tokenClient = window.google.accounts.oauth2.initTokenClient({ client_id: clientId, scope: SCOPE, callback: () => {} });
+    });
+  }
+  function isConnected() { return !!accessToken && Date.now() < tokenExpiresAt; }
+  function getAccessToken() { return isConnected() ? accessToken : null; }
+
+  function connect() {
+    return new Promise((resolve, reject) => {
+      if (!tokenClient) return reject(new Error("Not initialized yet — save your Client ID first."));
+      let settled = false;
+      const timeoutId = setTimeout(() => {
+        if (settled) return; settled = true;
+        reject(new Error("Google's sign-in window didn't open or was closed — usually a pop-up blocker. Allow pop-ups for this site (check the address bar) and try Connect again."));
+      }, 20000);
+      tokenClient.callback = (resp) => {
+        if (settled) return; settled = true; clearTimeout(timeoutId);
+        if (resp.error) return reject(new Error(resp.error));
+        const granted = (resp.scope || "").split(/\s+/);
+        if (!granted.includes("https://www.googleapis.com/auth/drive.appdata")) {
+          return reject(new Error("Google signed you in but didn't grant Drive access this time. Click Disconnect, then Connect again, and make sure the Drive permission stays checked on the approval screen."));
+        }
+        accessToken = resp.access_token;
+        tokenExpiresAt = Date.now() + (Number(resp.expires_in || 3600) - 60) * 1000;
+        persistToken();
+        resolve();
+      };
+      tokenClient.requestAccessToken({ prompt: "consent" });
+    });
+  }
+  function ensureToken() {
+    if (isConnected()) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      if (!tokenClient) return resolve(false);
+      tokenClient.callback = (resp) => {
+        if (resp.error) return resolve(false);
+        accessToken = resp.access_token;
+        tokenExpiresAt = Date.now() + (Number(resp.expires_in || 3600) - 60) * 1000;
+        persistToken();
+        resolve(true);
+      };
+      try { tokenClient.requestAccessToken({ prompt: "" }); } catch (e) { resolve(false); }
+    });
+  }
+  function disconnect() {
+    if (accessToken && window.google) { try { window.google.accounts.oauth2.revoke(accessToken, () => {}); } catch (e) { /* ignore */ } }
+    accessToken = null; tokenExpiresAt = 0;
+    sessionStorage.removeItem(APP.tokenSessionKey);
+  }
+  function request(path, options) {
+    options = options || {};
+    if (!isConnected()) return Promise.reject(new Error("Not connected to Google Calendar."));
+    return fetch(API_BASE + path, {
+      method: options.method || "GET",
+      headers: Object.assign({ Authorization: "Bearer " + accessToken, "Content-Type": "application/json" }, options.headers || {}),
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    }).then(async (res) => {
+      if (!res.ok) { const text = await res.text().catch(() => ""); throw new Error("Google Calendar API error " + res.status + ": " + text); }
+      if (res.status === 204) return null;
+      return res.json();
+    });
+  }
+  async function upsertEvent(calendarId, { title, description, dateISO, kind, refId, existingEventId }) {
+    calendarId = calendarId || "primary";
+    const body = {
+      summary: title, description: description || "",
+      start: { date: dateISO }, end: { date: dateISO },
+      extendedProperties: { private: { app: APP.storageKey, kind: kind || "", refId: refId || "" } },
+      reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 540 }] },
+    };
+    if (existingEventId) {
+      try { return await request("/calendars/" + encodeURIComponent(calendarId) + "/events/" + existingEventId, { method: "PATCH", body }); }
+      catch (e) { /* fall through and create a new one if it was deleted */ }
+    }
+    return request("/calendars/" + encodeURIComponent(calendarId) + "/events", { method: "POST", body });
+  }
+  return { init, isConnected, connect, ensureToken, disconnect, getAccessToken, upsertEvent };
+})();
+
+/* ===========================================================================
+   6. GOOGLE DRIVE CROSS-DEVICE SYNC  (unchanged from starter)
+   =========================================================================== */
+const DriveSync = (function () {
+  const API_BASE = "https://www.googleapis.com/drive/v3";
+  const UPLOAD_BASE = "https://www.googleapis.com/upload/drive/v3";
+  let cachedFileId = null;
+
+  function available() { return Calendar.getAccessToken ? !!Calendar.getAccessToken() : false; }
+  function authHeaders() {
+    const token = Calendar.getAccessToken();
+    if (!token) throw new Error("Not signed in to Google.");
+    return { Authorization: "Bearer " + token };
+  }
+  async function findFileId() {
+    if (cachedFileId) return cachedFileId;
+    const params = new URLSearchParams({ spaces: "appDataFolder", q: "name='" + APP.driveFileName + "'", fields: "files(id, modifiedTime)", pageSize: "1" });
+    const res = await fetch(API_BASE + "/files?" + params.toString(), { headers: authHeaders() });
+    if (!res.ok) throw new Error("Drive lookup failed: " + res.status);
+    const data = await res.json();
+    const file = (data.files || [])[0];
+    cachedFileId = file ? file.id : null;
+    return cachedFileId;
+  }
+  async function pull() {
+    if (!available()) return null;
+    const id = await findFileId();
+    if (!id) return null;
+    const res = await fetch(API_BASE + "/files/" + id + "?alt=media", { headers: authHeaders() });
+    if (!res.ok) throw new Error("Drive read failed: " + res.status);
+    try { return await res.json(); } catch (e) { return null; }
+  }
+  async function push(state) {
+    if (!available()) return false;
+    const body = JSON.stringify(state);
+    const id = await findFileId();
+    if (id) {
+      const res = await fetch(UPLOAD_BASE + "/files/" + id + "?uploadType=media", { method: "PATCH", headers: Object.assign({ "Content-Type": "application/json" }, authHeaders()), body });
+      if (!res.ok) throw new Error("Drive save failed: " + res.status);
+      return true;
+    }
+    const boundary = "boundary-" + Date.now();
+    const metadata = JSON.stringify({ name: APP.driveFileName, parents: ["appDataFolder"] });
+    const multipartBody = "--" + boundary + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" + metadata +
+      "\r\n--" + boundary + "\r\nContent-Type: application/json\r\n\r\n" + body + "\r\n--" + boundary + "--";
+    const res = await fetch(UPLOAD_BASE + "/files?uploadType=multipart", { method: "POST", headers: Object.assign({ "Content-Type": "multipart/related; boundary=" + boundary }, authHeaders()), body: multipartBody });
+    if (!res.ok) throw new Error("Drive create failed: " + res.status);
+    cachedFileId = (await res.json()).id;
+    return true;
+  }
+  return { available, pull, push };
+})();
+
+async function syncFromDriveIfNewer(opts) {
+  opts = opts || {};
+  if (!DriveSync.available()) {
+    const e = new Error("Not connected to Google — connect first.");
+    if (opts.surfaceErrors) throw e;
+    return { pulled: false };
+  }
+  try {
+    const remote = await DriveSync.pull();
+    if (remote && typeof remote === "object" && (remote.updatedAt || 0) > (STATE.updatedAt || 0)) {
+      STATE = remote; saveState(); applyTheme(); render();
+      toast("Loaded your latest data from Google Drive");
+      return { pulled: true };
+    }
+    /* SAFETY RAIL — never push an empty list over a remote copy that has data. */
+    const localEmpty = !STATE.items || STATE.items.length === 0;
+    const remoteHasData = remote && Array.isArray(remote.items) && remote.items.length > 0;
+    if (localEmpty && remoteHasData) {
+      STATE = Object.assign(defaultState(), remote);
+      STATE.settings = Object.assign(defaultState().settings, remote.settings || {});
+      saveState(); applyTheme(); render();
+      toast("Restored " + STATE.items.length + " item(s) from Google Drive");
+      return { pulled: true, recovered: true };
+    }
+    await DriveSync.push(STATE);
+    return { pulled: false };
+  } catch (e) {
+    console.warn("Drive sync failed:", e);
+    if (opts.surfaceErrors) throw friendlyDriveError(e);
+    return { pulled: false, error: e };
+  }
+}
+
+function friendlyDriveError(e) {
+  const msg = String((e && e.message) || e);
+  if (msg.includes("403")) return new Error("Google didn't grant Drive access, or the Drive API isn't enabled for your Google Cloud project yet (APIs & Services → Library → Google Drive API → Enable). Then Disconnect and Connect again.");
+  if (msg.includes("401")) return new Error("Your Google sign-in expired. Click Reconnect.");
+  return new Error("Drive sync failed (" + msg + "). Try Disconnect then Connect again.");
+}
+
+async function connectGoogle() {
+  if (!STATE.settings.googleClientId) { toast("Enter your Google OAuth Client ID first."); return; }
+  try {
+    await Calendar.init(STATE.settings.googleClientId);
+    await Calendar.connect();
+    toast("Connected to Google");
+    try { await syncFromDriveIfNewer({ surfaceErrors: true }); }
+    catch (e) { toast(e.message); }
+    openSettingsModal();
+  } catch (e) {
+    toast(e.message || "Couldn't connect to Google.");
+  }
+}
+
+/* ===========================================================================
+   7. ASSISTANT (Claude, via your Cloudflare Worker proxy)
+   Policy: the assistant may ADD and EDIT, but NEVER DELETE.
+   =========================================================================== */
+const ASSISTANT_SYSTEM =
+  "You are " + APP.assistantName + ", a calm, steady assistant inside " + APP.name + ", " +
+  "an external working-memory app for someone with ADHD. Your whole job is to help him " +
+  "get things out of his head and back into view at the right moment, with zero friction. " +
+  "Capturing beats organizing — when in doubt, just capture it to the inbox and reassure him it's saved. " +
+  "Use the right tool for the job: raw thoughts -> add_capture/add_item; a promise with no hard date -> add_commitment; " +
+  "something dated -> add_date; a note about his wife (or another person) -> add_person_note; " +
+  "a situational list -> add_context; and set_status to move a commitment along or mark it done. " +
+  "TONE (important): calm, warm, never any guilt. Never say 'overdue', 'late', 'behind', or 'you forgot again'. " +
+  "Use neutral words: 'not started', 'in progress', 'done'. No pressure, no streaks. " +
+  "You can add and update, but you NEVER delete — that stays a manual action he does on purpose. " +
+  "Keep replies short and concrete. If you're unsure what he means, capture it anyway and ask one short question.";
+
+function statusValue(s) {
+  s = String(s || "").toLowerCase();
+  if (s.includes("done") || s.includes("complete") || s.includes("finish")) return "done";
+  if (s.includes("progress") || s.includes("working") || s.includes("started")) return "in progress";
+  return "not started";
+}
+
+const ASSISTANT_TOOLS = [
+  { name: "add_item", description: "Capture a raw thought, reminder, or 'don't forget' into the inbox. Use this whenever there's no clearly better home — capturing always beats losing it.",
+    input_schema: { type: "object", properties: { title: { type: "string", description: "The thing to remember, in his words." } }, required: ["title"] } },
+  { name: "add_capture", description: "Alias of add_item — capture a raw thought into the inbox.",
+    input_schema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] } },
+  { name: "update_item", description: "Edit an existing item. Match by its text (fuzzy match is fine).",
+    input_schema: { type: "object", properties: { title: { type: "string" }, newTitle: { type: "string" }, newDueDate: { type: "string" } }, required: ["title"] } },
+  { name: "add_commitment", description: "Log a promise or task with NO hard date ('I said I'd fix the fence'). Tracks who it's for and status.",
+    input_schema: { type: "object", properties: { text: { type: "string" }, who: { type: "string", description: "Who it's for, e.g. 'my wife' or 'work'." }, status: { type: "string", description: "not started | in progress | done" } }, required: ["text"] } },
+  { name: "set_status", description: "Move a commitment along or mark it done. Match by its text.",
+    input_schema: { type: "object", properties: { text: { type: "string" }, status: { type: "string", description: "not started | in progress | done" } }, required: ["text", "status"] } },
+  { name: "add_date", description: "Add something time-bound (appointment, deadline, event). Creates a Google Calendar reminder too when Google is connected.",
+    input_schema: { type: "object", properties: { text: { type: "string" }, date: { type: "string", description: "YYYY-MM-DD" }, leaveBy: { type: "string", description: "Optional prep/leave-by note, e.g. 'leave by 1:30'." } }, required: ["text", "date"] } },
+  { name: "add_person_note", description: "Add a note about a person (default: his wife). Section is one of: promise, told, situation, pref.",
+    input_schema: { type: "object", properties: { text: { type: "string" }, section: { type: "string", description: "promise | told | situation | pref" }, person: { type: "string", description: "Defaults to his wife." } }, required: ["text"] } },
+  { name: "add_context", description: "Add an item to a situational list ('tell my wife', 'near the store', 'ask the doctor').",
+    input_schema: { type: "object", properties: { text: { type: "string" }, list: { type: "string" } }, required: ["text", "list"] } },
+  { name: "log_repair", description: "Privately note something that slipped and landed badly — for spotting patterns, never for guilt.",
+    input_schema: { type: "object", properties: { text: { type: "string" } }, required: ["text"] } },
+];
+
+function fuzzyFind(title, kind) {
+  const q = String(title || "").toLowerCase().trim();
+  const pool = kind ? items(kind) : STATE.items;
+  const txt = (i) => String(i.text || i.title || "").toLowerCase();
+  return pool.find((i) => txt(i) === q)
+    || pool.find((i) => txt(i).includes(q))
+    || pool.find((i) => q.includes(txt(i)) && txt(i).length > 2);
+}
+
+function newItem(kind, fields) { return Object.assign({ id: uid(), kind, createdAt: Date.now() }, fields); }
+
+const ASSISTANT_HANDLERS = {
+  add_item: (input) => {
+    const text = String(input.title || input.text || "").trim();
+    if (!text) return { ok: false, message: "Nothing to capture." };
+    STATE.items.push(newItem("inbox", { text }));
+    currentTab = "inbox"; persist();
+    return { ok: true, message: "Captured: " + text };
+  },
+  add_capture: (input) => ASSISTANT_HANDLERS.add_item(input),
+  update_item: (input) => {
+    const item = fuzzyFind(input.title);
+    if (!item) return { ok: false, message: "Couldn't find anything called \"" + input.title + "\"." };
+    if (input.newTitle) item.text = input.newTitle;
+    if (input.newDueDate) item.date = input.newDueDate;
+    persist();
+    return { ok: true, message: "Updated: " + (item.text || "") };
+  },
+  add_commitment: (input) => {
+    const text = String(input.text || "").trim();
+    if (!text) return { ok: false, message: "Nothing to add." };
+    STATE.items.push(newItem("commitment", { text, who: (input.who || "").trim(), status: statusValue(input.status) }));
+    currentTab = "commitments"; persist();
+    return { ok: true, message: "Commitment added: " + text };
+  },
+  set_status: (input) => {
+    const item = fuzzyFind(input.text, "commitment");
+    if (!item) return { ok: false, message: "Couldn't find a commitment like \"" + input.text + "\"." };
+    item.status = statusValue(input.status); persist();
+    return { ok: true, message: "\"" + item.text + "\" is now " + item.status + "." };
+  },
+  add_date: (input) => {
+    const text = String(input.text || "").trim();
+    const date = String(input.date || "").trim();
+    if (!text || !date) return { ok: false, message: "Need both what and when." };
+    const it = newItem("date", { text, date, leaveBy: (input.leaveBy || "").trim() });
+    STATE.items.push(it); currentTab = "dates"; persist();
+    pushDateToCalendar(it);
+    return { ok: true, message: "Added: " + text + " on " + date };
+  },
+  add_person_note: (input) => {
+    const text = String(input.text || "").trim();
+    if (!text) return { ok: false, message: "Nothing to add." };
+    const section = ["promise", "told", "situation", "pref"].includes(input.section) ? input.section : "told";
+    const person = (input.person || STATE.settings.wifeName || "My Wife").trim();
+    STATE.items.push(newItem("person", { text, section, person }));
+    currentTab = "people"; persist();
+    return { ok: true, message: "Saved to " + person + "'s note: " + text };
+  },
+  add_context: (input) => {
+    const text = String(input.text || "").trim();
+    const list = String(input.list || "").trim();
+    if (!text || !list) return { ok: false, message: "Need the item and which list." };
+    STATE.items.push(newItem("context", { text, list })); currentTab = "lists"; persist();
+    return { ok: true, message: "Added to \"" + list + "\": " + text };
+  },
+  log_repair: (input) => {
+    const text = String(input.text || "").trim();
+    if (!text) return { ok: false, message: "Nothing to log." };
+    STATE.items.push(newItem("repair", { text })); persist();
+    return { ok: true, message: "Logged privately. This is just for spotting patterns — no guilt." };
+  },
+};
+
+function pushDateToCalendar(it) {
+  try {
+    if (!Calendar.isConnected()) return;
+    Calendar.upsertEvent(STATE.settings.defaultCalendarId, {
+      title: it.text, description: it.leaveBy ? ("Prep: " + it.leaveBy) : "",
+      dateISO: it.date, kind: "date", refId: it.id, existingEventId: it.eventId,
+    }).then((ev) => { if (ev && ev.id) { it.eventId = ev.id; saveState(); } })
+      .catch((e) => console.warn("Calendar add skipped:", e));
+  } catch (e) { /* ignore */ }
+}
+
+async function callAssistantTool(name, input) {
+  const handler = ASSISTANT_HANDLERS[name];
+  if (!handler) return { ok: false, message: "Unknown tool: " + name };
+  try { return await handler(input || {}); }
+  catch (e) { return { ok: false, message: "That failed: " + e.message }; }
+}
+
+function buildAssistantContext() {
+  const lines = ["Today's date: " + todayISO()];
+  const wife = STATE.settings.wifeName || "My Wife";
+  const inbox = items("inbox").filter((i) => !i.done);
+  const commits = items("commitment").filter((i) => i.status !== "done");
+  const dates = items("date").filter((i) => daysUntil(i.date) >= 0).sort((a, b) => a.date.localeCompare(b.date));
+  const person = items("person");
+  const ctx = items("context");
+  lines.push("", "Inbox (" + inbox.length + "):");
+  inbox.slice(0, 15).forEach((i) => lines.push("- " + i.text));
+  lines.push("", "Open commitments (" + commits.length + "):");
+  commits.slice(0, 20).forEach((i) => lines.push("- " + i.text + (i.who ? " [for " + i.who + "]" : "") + " — " + (i.status || "not started")));
+  lines.push("", "Upcoming dates:");
+  dates.slice(0, 15).forEach((i) => lines.push("- " + i.date + ": " + i.text + (i.leaveBy ? " (" + i.leaveBy + ")" : "")));
+  lines.push("", wife + " notes:");
+  person.slice(-15).forEach((i) => lines.push("- [" + i.section + "] " + i.text));
+  if (ctx.length) {
+    lines.push("", "Context lists:");
+    ctx.slice(0, 20).forEach((i) => lines.push("- (" + i.list + ") " + i.text));
+  }
+  return lines.join("\n");
+}
+
+let asOpen = false, asLoading = false;
+let asMessages = [];
+let asApiMessages = [];
+
+function renderAssistant() {
+  const root = document.getElementById("asRoot");
+  const ready = !!STATE.settings.assistantProxyUrl;
+  root.innerHTML =
+    '<button class="as-bubble" data-action="as-toggle" title="' + escapeHtml(APP.assistantName) + '">' + APP.assistantEmoji + '<span>' + escapeHtml(APP.assistantName) + "</span></button>" +
+    '<div class="as-panel' + (asOpen ? " open" : "") + '">' +
+      '<div class="as-header"><span>' + escapeHtml(APP.assistantName) + '</span><button data-action="as-close">✕</button></div>' +
+      '<div class="as-body" id="asBody">' +
+        (asMessages.length ? asMessages.map(renderAssistantMessage).join("")
+          : '<div class="as-row as-assistant"><div class="as-text">Hey Dusty. Just tell me anything you need to remember — a thought, a promise, a date — and I\'ll put it where it belongs. Talking is fine; capturing beats organizing.</div></div>') +
+      "</div>" +
+      '<form class="as-input-row" id="asForm">' +
+        '<input type="text" id="asInput" placeholder="' + (ready ? "Tell me anything…" : "Set a Worker Proxy URL in Settings first") + '" ' + (ready ? "" : "disabled") + " />" +
+        '<button type="submit"' + (ready ? "" : " disabled") + ">Send</button>" +
+      "</form>" +
+    "</div>";
+  const form = document.getElementById("asForm");
+  if (form) form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const input = document.getElementById("asInput");
+    const text = input.value.trim();
+    if (text) { input.value = ""; assistantSend(text); }
+  });
+  const body = document.getElementById("asBody");
+  if (body) body.scrollTop = body.scrollHeight;
+}
+
+function renderAssistantMessage(m) {
+  if (m.role === "user") return '<div class="as-row as-user"><div class="as-text">' + escapeHtml(m.text) + "</div></div>";
+  return '<div class="as-row as-assistant"><div class="as-text">' + escapeHtml(m.text) +
+    ((m.actionNotes || []).map((n) => '<div class="as-action-note">✓ ' + escapeHtml(n) + "</div>").join("")) + "</div></div>";
+}
+
+async function assistantSend(text) {
+  if (asLoading) return;
+  const proxyUrl = STATE.settings.assistantProxyUrl;
+  if (!proxyUrl) { toast("Set a Worker Proxy URL in Settings first."); return; }
+
+  asMessages.push({ role: "user", text });
+  asApiMessages.push({ role: "user", content: text });
+  asLoading = true;
+  asMessages.push({ role: "assistant", text: "thinking…", isLoading: true });
+  renderAssistant();
+
+  try {
+    let finalText = "";
+    const actionNotes = [];
+    const MAX_ROUNDS = 4;
+    for (let round = 0; round < MAX_ROUNDS; round++) {
+      const res = await fetch(proxyUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-5-20250929",
+          max_tokens: 1024,
+          system: ASSISTANT_SYSTEM + "\n\nCurrent state:\n" + buildAssistantContext(),
+          tools: ASSISTANT_TOOLS,
+          messages: asApiMessages,
+        }),
+      });
+      if (!res.ok) { const t = await res.text().catch(() => ""); throw new Error("Proxy error " + res.status + ": " + t); }
+      const data = await res.json();
+      const content = data.content || [];
+      asApiMessages.push({ role: "assistant", content });
+
+      const textBlocks = content.filter((b) => b.type === "text").map((b) => b.text);
+      if (textBlocks.length) finalText = textBlocks.join("\n");
+      const toolBlocks = content.filter((b) => b.type === "tool_use");
+      if (!toolBlocks.length) break;
+
+      const toolResults = [];
+      for (const block of toolBlocks) {
+        const result = await callAssistantTool(block.name, block.input);
+        if (result && result.message) actionNotes.push(result.message);
+        toolResults.push({ type: "tool_result", tool_use_id: block.id, content: JSON.stringify(result) });
+      }
+      asApiMessages.push({ role: "user", content: toolResults });
+      if (round === MAX_ROUNDS - 1) finalText = finalText || "Done — see above for what I saved.";
+    }
+    asMessages = asMessages.filter((m) => !m.isLoading);
+    asMessages.push({ role: "assistant", text: finalText || "Done.", actionNotes });
+  } catch (e) {
+    console.error(e);
+    asMessages = asMessages.filter((m) => !m.isLoading);
+    asMessages.push({ role: "assistant", text: "Something went wrong reaching me: " + e.message });
+  } finally {
+    asLoading = false;
+    renderAssistant();
+  }
+}
+
+/* ===========================================================================
+   8. BACKUP  (unchanged from starter)
+   =========================================================================== */
+function exportBackup() {
+  const blob = new Blob([JSON.stringify(STATE, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = APP.storageKey + "-backup-" + todayISO() + ".json";
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  toast("Backup downloaded");
+}
+function importBackupFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(reader.result);
+      if (!parsed || !Array.isArray(parsed.items)) { toast("That doesn't look like a backup from this app."); return; }
+      if (!confirm("Replace everything currently in this app with the contents of this backup?")) return;
+      STATE = Object.assign(defaultState(), parsed);
+      STATE.settings = Object.assign(defaultState().settings, parsed.settings || {});
+      persist(); applyTheme();
+      closeModal();
+      toast("Backup restored");
+    } catch (e) { toast("Couldn't read that file."); }
+  };
+  reader.readAsText(file);
+}
+
+/* ===========================================================================
+   9. SETTINGS MODAL  (starter settings + theme + wife-label)
+   =========================================================================== */
+function openSettingsModal() {
+  const connected = Calendar.isConnected();
+  const theme = STATE.settings.theme || "auto";
+  const opt = (v, label) => '<option value="' + v + '"' + (theme === v ? " selected" : "") + ">" + label + "</option>";
+  openModal(
+    "<h3>Settings</h3>" +
+    '<form data-form="settings-form">' +
+      '<div class="field"><label>Appearance</label><select name="theme">' + opt("auto", "Match my device") + opt("light", "Light") + opt("dark", "Dark") + "</select></div>" +
+      '<div class="field"><label>What to call your wife in the app</label><input type="text" name="wifeName" value="' + escapeHtml(STATE.settings.wifeName || "My Wife") + '" /></div>' +
+      '<div class="hr"></div>' +
+      "<p class=\"hint\">Optional: connect Google for calendar reminders on dated items and cross-device sync via your own private Drive folder.</p>" +
+      '<div class="field"><label>Google OAuth Client ID</label><input type="text" name="googleClientId" value="' + escapeHtml(STATE.settings.googleClientId || "") + '" placeholder="xxxx.apps.googleusercontent.com" /></div>' +
+      '<div class="field"><label>Calendar ID</label><input type="text" name="defaultCalendarId" value="' + escapeHtml(STATE.settings.defaultCalendarId || "primary") + '" /></div>' +
+      '<div class="row wrapline" style="margin-bottom:10px">' +
+        '<button type="submit" class="btn-sm">Save</button>' +
+        '<button type="button" class="btn-sm" data-action="connect-google">' + (connected ? "Reconnect" : "Connect") + "</button>" +
+        (connected ? '<button type="button" class="btn-sm" data-action="disconnect-google">Disconnect</button><span class="status-pill done">Connected</span>'
+                   : '<span class="status-pill none">Not connected</span>') +
+      "</div>" +
+      (connected ? '<div class="hr"></div><div class="row between"><div><strong style="font-size:13px">Cross-device sync</strong><div class="hint">Saves to your own Google Drive; loads on any device signed in with the same account.</div></div><button type="button" class="btn-sm" data-action="sync-drive-now">Sync now</button></div>' : "") +
+      '<div class="hr"></div>' +
+      "<p class=\"hint\">Anchor talks to Claude through your own Cloudflare Worker, so no API key lives in this file. One Worker serves every app on this origin.</p>" +
+      '<div class="field"><label>Worker Proxy URL</label><input type="text" name="assistantProxyUrl" value="' + escapeHtml(STATE.settings.assistantProxyUrl || "") + '" placeholder="https://your-worker.your-subdomain.workers.dev" /></div>' +
+      '<label class="row" style="margin-bottom:10px;font-size:13px"><input type="checkbox" name="assistantCheckins" ' + (STATE.settings.assistantCheckins ? "checked" : "") + ' style="width:16px;height:16px;margin-right:6px" /> Let Anchor check in on its own (off by default)</label>' +
+      '<button type="submit" class="btn-sm">Save assistant settings</button>' +
+      '<div class="hr"></div>' +
+      '<div class="row between"><div><strong style="font-size:13px">Notifications</strong><div class="hint">Only while a tab with this app is open.</div></div>' +
+        (typeof Notification === "undefined" ? '<span class="status-pill none">Not supported</span>' :
+          Notification.permission === "granted" ? '<span class="status-pill done">Enabled</span>' :
+          '<button type="button" class="btn-sm" data-action="enable-notifications">Enable</button>') +
+      "</div>" +
+      '<div class="hr"></div>' +
+      '<div class="row between"><div><strong style="font-size:13px">Backup</strong><div class="hint">Export or restore a .json backup.</div></div>' +
+        '<div class="row"><button type="button" class="btn-sm" data-action="export-backup">Export</button>' +
+        '<label class="btn-sm" style="cursor:pointer">Import<input type="file" accept=".json" id="importFile" style="display:none" /></label></div>' +
+      "</div>" +
+    "</form>" +
+    '<div class="modal-actions"><button type="button" class="btn-ghost" data-action="close-modal">Close</button></div>'
+  );
+  document.querySelector('[data-form="settings-form"]').addEventListener("submit", (e) => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target).entries());
+    STATE.settings.theme = data.theme || "auto";
+    STATE.settings.wifeName = (data.wifeName || "My Wife").trim() || "My Wife";
+    STATE.settings.googleClientId = (data.googleClientId || "").trim();
+    STATE.settings.defaultCalendarId = (data.defaultCalendarId || "primary").trim();
+    STATE.settings.assistantProxyUrl = (data.assistantProxyUrl || "").trim();
+    STATE.settings.assistantCheckins = !!data.assistantCheckins;
+    persist(); applyTheme();
+    renderAssistant();
+    toast("Saved");
+  });
+  const importInput = document.getElementById("importFile");
+  if (importInput) importInput.addEventListener("change", (e) => { if (e.target.files[0]) importBackupFile(e.target.files[0]); });
+}
+
+/* ===========================================================================
+   10. UI — Working Memory
+   =========================================================================== */
+const TABS = [
+  { id: "today", label: "Today" },
+  { id: "inbox", label: "Inbox" },
+  { id: "people", label: "People" },
+  { id: "commitments", label: "Commitments" },
+  { id: "dates", label: "Dates" },
+  { id: "lists", label: "Lists" },
+];
+
+function render() {
+  const app = document.getElementById("app");
+  const wife = escapeHtml(STATE.settings.wifeName || "My Wife");
+  let body = "";
+  if (currentTab === "today") body = renderToday(wife);
+  else if (currentTab === "inbox") body = renderInbox();
+  else if (currentTab === "people") body = renderPeople(wife);
+  else if (currentTab === "commitments") body = renderCommitments();
+  else if (currentTab === "dates") body = renderDates();
+  else if (currentTab === "lists") body = renderLists();
+
+  app.innerHTML =
+    '<div class="row between">' +
+      "<div><h1>" + escapeHtml(APP.name) + '</h1><div class="tagline">The part of your brain that never drops a thing.</div></div>' +
+      '<div class="row"><button class="iconbtn" data-action="cycle-theme" title="Light / dark">◐</button><button class="iconbtn" data-action="open-settings" title="Settings">⚙</button></div>' +
+    "</div>" +
+    '<div class="row" style="margin-bottom:14px"><button class="btn-primary" data-action="add-item">+ Capture a thought</button></div>' +
+    '<div class="top-nav">' + TABS.map((t) => '<button class="nav-tab' + (currentTab === t.id ? " active" : "") + '" data-action="tab" data-id="' + t.id + '">' + t.label + "</button>").join("") + "</div>" +
+    body +
+    '<div class="footer-links"><a data-action="tab" data-id="private">Private log</a></div>';
+
+  if (currentTab === "private") {
+    app.querySelector(".top-nav").insertAdjacentHTML("afterend", "");
+  }
+}
+
+function itemCard(inner, cls) { return '<div class="card' + (cls ? " " + cls : "") + '">' + inner + "</div>"; }
+
+function renderToday(wife) {
+  const today = todayISO();
+  const soon = items("date").filter((i) => { const d = daysUntil(i.date); return d >= 0 && d <= 2; }).sort((a, b) => a.date.localeCompare(b.date));
+  const wifeOpen = items("commitment").filter((i) => i.status !== "done" && /wife|her|she/i.test(i.who || ""));
+  const openCommits = items("commitment").filter((i) => i.status !== "done").slice(0, 3);
+  const inbox = items("inbox").filter((i) => !i.done);
+  const tells = items("context").filter((i) => /tell/i.test(i.list));
+
+  let out = '<div class="card accent"><div class="section-title" style="margin-top:0">Today · your one calm look</div>';
+  let any = false;
+  if (soon.length) { any = true; out += soon.map((i) => '<div style="padding:6px 0"><span class="dot"></span>' + escapeHtml(i.text) + ' <span class="faint">— ' + fmtDate(i.date) + (i.leaveBy ? ", " + escapeHtml(i.leaveBy) : "") + "</span></div>").join(""); }
+  if (wifeOpen.length) { any = true; out += wifeOpen.slice(0, 3).map((i) => '<div style="padding:6px 0"><span class="dot attn"></span>' + escapeHtml(i.text) + ' <span class="faint">— for ' + wife + "</span></div>").join(""); }
+  if (tells.length) { any = true; out += tells.slice(0, 3).map((i) => '<div style="padding:6px 0"><span class="dot"></span>' + escapeHtml(i.text) + ' <span class="faint">— tell ' + wife + "</span></div>").join(""); }
+  const otherCommits = openCommits.filter((i) => !wifeOpen.includes(i));
+  if (otherCommits.length) { any = true; out += otherCommits.map((i) => '<div style="padding:6px 0"><span class="dot"></span>' + escapeHtml(i.text) + (i.who ? ' <span class="faint">— ' + escapeHtml(i.who) + "</span>" : "") + "</div>").join(""); }
+  if (!any) out += '<div class="empty">Nothing needs you right now. When something lands in your head, tap <strong>Capture</strong> or just tell Anchor.</div>';
+  out += "</div>";
+
+  if (inbox.length) out += '<div class="section-title">Unsorted in your inbox (' + inbox.length + ')</div>' + itemCard('<span class="faint">' + inbox.length + " thing(s) waiting — no rush. Open the Inbox tab when you want to sort, or leave them.</span>");
+  return out;
+}
+
+function renderInbox() {
+  const inbox = items("inbox").filter((i) => !i.done).sort((a, b) => b.createdAt - a.createdAt);
+  const done = items("inbox").filter((i) => i.done);
+  let out = '<div class="section-title">Inbox — dump anything, sort never</div>';
+  out += inbox.length ? inbox.map((i) =>
+      itemCard('<div class="row between"><div class="maintext">' + escapeHtml(i.text) + "</div>" +
+        '<button class="btn-sm" data-action="clear-inbox" data-id="' + i.id + '" title="Clear from inbox">✓ Clear</button></div>')).join("")
+    : '<div class="empty">Empty — that\'s fine. Tap <strong>Capture</strong> or tell Anchor anything you don\'t want to lose.</div>';
+  if (done.length) out += '<div class="section-title">Cleared (' + done.length + ")</div>" + done.slice(-5).map((i) => itemCard('<span class="faint">' + escapeHtml(i.text) + "</span>")).join("");
+  return out;
+}
+
+function renderPeople(wife) {
+  const notes = items("person");
+  const secs = [ { k: "promise", t: "Promises I've made" }, { k: "told", t: "Things she's told me" }, { k: "situation", t: "Ongoing situations" }, { k: "pref", t: "Things that matter to her" } ];
+  let out = '<div class="row between"><div class="section-title" style="margin-top:4px">' + wife + " · the page that matters most</div>" +
+    '<button class="btn-sm" data-action="add-person">+ Note</button></div>';
+  let any = false;
+  out += secs.map((s) => {
+    const rows = notes.filter((n) => n.section === s.k);
+    if (!rows.length) return "";
+    any = true;
+    return '<div class="section-title">' + s.t + "</div>" + rows.map((n) => itemCard('<div class="row between"><div class="maintext">' + escapeHtml(n.text) + "</div>" +
+      (s.k === "promise" ? '<button class="btn-sm" data-action="promise-done" data-id="' + n.id + '">✓ Done</button>' : "") + "</div>")).join("");
+  }).join("");
+  if (!any) out += '<div class="empty">No notes yet. Add anything she\'s told you, asked you to remember, or that matters to her — or just tell Anchor "note for my wife: …".</div>';
+  return out;
+}
+
+function renderCommitments() {
+  const open = items("commitment").filter((i) => i.status !== "done");
+  const done = items("commitment").filter((i) => i.status === "done");
+  const pill = (i) => {
+    const cls = i.status === "in progress" ? "inprogress" : i.status === "done" ? "done" : "notstarted";
+    return '<button class="status-pill ' + cls + '" data-action="cycle-status" data-id="' + i.id + '">' + escapeHtml(i.status || "not started") + "</button>";
+  };
+  let out = '<div class="row between"><div class="section-title" style="margin-top:4px">Commitments — things I said I\'d do</div>' +
+    '<button class="btn-sm" data-action="add-commitment">+ Add</button></div>';
+  out += open.length ? open.map((i) => itemCard('<div class="row between"><div class="maintext">' + escapeHtml(i.text) +
+      (i.who ? ' <span class="faint">— ' + escapeHtml(i.who) + "</span>" : "") + "</div>" + pill(i) + "</div>")).join("")
+    : '<div class="empty">Nothing open. Tap <strong>Add</strong> for any "I\'ll do that" with no set date — those are the ones that vanish.</div>';
+  if (done.length) out += '<div class="section-title">Done (' + done.length + ")</div>" + done.slice(-6).map((i) => itemCard('<div class="row between"><span class="faint">' + escapeHtml(i.text) + "</span>" + pill(i) + "</div>")).join("");
+  return out;
+}
+
+function renderDates() {
+  const upcoming = items("date").filter((i) => daysUntil(i.date) >= 0).sort((a, b) => a.date.localeCompare(b.date));
+  const past = items("date").filter((i) => daysUntil(i.date) < 0).sort((a, b) => b.date.localeCompare(a.date));
+  let out = '<div class="row between"><div class="section-title" style="margin-top:4px">Dates — anything time-bound</div>' +
+    '<button class="btn-sm" data-action="add-date">+ Add</button></div>';
+  out += upcoming.length ? upcoming.map((i) => {
+    const d = daysUntil(i.date);
+    const when = d === 0 ? "Today" : d === 1 ? "Tomorrow" : fmtDate(i.date);
+    return itemCard('<div class="maintext">' + escapeHtml(i.text) + "</div>" +
+      '<div class="hint" style="margin-top:4px">' + when + (i.leaveBy ? ' · ' + escapeHtml(i.leaveBy) : "") + (i.eventId ? " · on your calendar" : "") + "</div>");
+  }).join("") : '<div class="empty">No upcoming dates. Tap <strong>Add</strong> — if Google is connected, it also drops a calendar reminder.</div>';
+  if (past.length) out += '<div class="section-title">Past</div>' + past.slice(0, 5).map((i) => itemCard('<span class="faint">' + escapeHtml(i.text) + " · " + fmtDate(i.date) + "</span>")).join("");
+  return out;
+}
+
+function renderLists() {
+  const ctx = items("context");
+  const listNames = [];
+  ctx.forEach((i) => { if (!listNames.includes(i.list)) listNames.push(i.list); });
+  let out = '<div class="row between"><div class="section-title" style="margin-top:4px">Context lists — right thing, right moment</div>' +
+    '<button class="btn-sm" data-action="add-context">+ Add</button></div>';
+  if (!listNames.length) return out + '<div class="empty">No lists yet. Group things by situation — "tell my wife", "near the store", "ask the doctor" — so the right thing shows up at the right moment.</div>';
+  out += listNames.map((name) => '<div class="section-title">' + escapeHtml(name) + "</div>" +
+    ctx.filter((i) => i.list === name).map((i) => itemCard('<div class="row between"><div class="maintext">' + escapeHtml(i.text) + "</div>" +
+      '<button class="btn-sm" data-action="clear-context" data-id="' + i.id + '">✓</button></div>')).join("")).join("");
+  return out;
+}
+
+function renderPrivate() {
+  const app = document.getElementById("app");
+  const reps = items("repair");
+  app.innerHTML =
+    '<div class="row between"><h1>Private log</h1><button class="iconbtn" data-action="back-main" title="Back">←</button></div>' +
+    '<p class="tagline">Only for spotting patterns in what slips — never a guilt list. Nothing here is ever thrown in your face.</p>' +
+    '<div class="row" style="margin-bottom:14px"><button class="btn-primary" data-action="add-repair">+ Log something that slipped</button></div>' +
+    (reps.length ? reps.slice().reverse().map((i) => itemCard('<div class="maintext">' + escapeHtml(i.text) + '</div><div class="hint" style="margin-top:4px">' + fmtDate((new Date(i.createdAt)).toISOString().slice(0, 10)) + "</div>")).join("")
+      : '<div class="empty">Nothing logged. When something slips and it stings, note it here — then every few weeks ask Anchor "what patterns show up?" That\'s where the real fixes come from.</div>');
+}
+
+/* ---- add modals ---- */
+function openAddItemModal() {
+  openModal(
+    "<h3>Capture a thought</h3><p class=\"hint\">Dump it however it comes out. No need to categorize — that's the whole point.</p>" +
+    '<form data-form="add-item">' +
+      '<div class="field"><textarea name="title" required autofocus placeholder="Anything you don\'t want to lose…"></textarea></div>' +
+      '<div class="modal-actions"><button type="button" class="btn-ghost" data-action="close-modal">Cancel</button>' +
+      '<button type="submit" class="btn-primary">Capture</button></div>' +
+    "</form>"
+  );
+  document.querySelector('[data-form="add-item"]').addEventListener("submit", (e) => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target).entries());
+    const text = (data.title || "").trim();
+    if (!text) return;
+    STATE.items.push(newItem("inbox", { text }));
+    currentTab = "inbox";
+    persist(); closeModal();
+    toast("Captured — it's safe now.");
+  });
+}
+
+function openAddCommitmentModal() {
+  openModal(
+    "<h3>Add a commitment</h3><p class=\"hint\">Something you said you'd do, with no hard date.</p>" +
+    '<form data-form="add-commitment">' +
+      '<div class="field"><label>What did you say you\'d do?</label><input name="text" required autofocus /></div>' +
+      '<div class="field"><label>For whom? (optional)</label><input name="who" placeholder="my wife, work, a friend…" /></div>' +
+      '<div class="modal-actions"><button type="button" class="btn-ghost" data-action="close-modal">Cancel</button>' +
+      '<button type="submit" class="btn-primary">Add</button></div>' +
+    "</form>"
+  );
+  document.querySelector('[data-form="add-commitment"]').addEventListener("submit", (e) => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target).entries());
+    if (!(data.text || "").trim()) return;
+    STATE.items.push(newItem("commitment", { text: data.text.trim(), who: (data.who || "").trim(), status: "not started" }));
+    persist(); closeModal(); toast("Added.");
+  });
+}
+
+function openAddDateModal() {
+  openModal(
+    "<h3>Add a date</h3>" +
+    '<form data-form="add-date">' +
+      '<div class="field"><label>What is it?</label><input name="text" required autofocus /></div>' +
+      '<div class="field"><label>When?</label><input type="date" name="date" required /></div>' +
+      '<div class="field"><label>Leave-by / prep (optional)</label><input name="leaveBy" placeholder="leave by 1:30" /></div>' +
+      '<div class="modal-actions"><button type="button" class="btn-ghost" data-action="close-modal">Cancel</button>' +
+      '<button type="submit" class="btn-primary">Add</button></div>' +
+    "</form>"
+  );
+  document.querySelector('[data-form="add-date"]').addEventListener("submit", (e) => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target).entries());
+    if (!(data.text || "").trim() || !data.date) return;
+    const it = newItem("date", { text: data.text.trim(), date: data.date, leaveBy: (data.leaveBy || "").trim() });
+    STATE.items.push(it); persist(); pushDateToCalendar(it); closeModal();
+    toast(Calendar.isConnected() ? "Added — and on your calendar." : "Added.");
+  });
+}
+
+function openAddPersonModal() {
+  const wife = escapeHtml(STATE.settings.wifeName || "My Wife");
+  openModal(
+    "<h3>Note about " + wife + "</h3>" +
+    '<form data-form="add-person">' +
+      '<div class="field"><label>Which kind?</label><select name="section">' +
+        '<option value="told">Something she told me</option>' +
+        '<option value="promise">A promise I made her</option>' +
+        '<option value="situation">An ongoing situation</option>' +
+        '<option value="pref">Something that matters to her</option>' +
+      "</select></div>" +
+      '<div class="field"><label>The note</label><textarea name="text" required autofocus></textarea></div>' +
+      '<div class="modal-actions"><button type="button" class="btn-ghost" data-action="close-modal">Cancel</button>' +
+      '<button type="submit" class="btn-primary">Save</button></div>' +
+    "</form>"
+  );
+  document.querySelector('[data-form="add-person"]').addEventListener("submit", (e) => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target).entries());
+    if (!(data.text || "").trim()) return;
+    STATE.items.push(newItem("person", { text: data.text.trim(), section: data.section || "told", person: STATE.settings.wifeName || "My Wife" }));
+    persist(); closeModal(); toast("Saved.");
+  });
+}
+
+function openAddContextModal() {
+  const existing = [];
+  items("context").forEach((i) => { if (!existing.includes(i.list)) existing.push(i.list); });
+  const datalist = existing.length ? '<datalist id="listnames">' + existing.map((n) => '<option value="' + escapeHtml(n) + '">').join("") + "</datalist>" : "";
+  openModal(
+    "<h3>Add to a list</h3><p class=\"hint\">Group by situation, not topic.</p>" +
+    '<form data-form="add-context">' +
+      '<div class="field"><label>Which list?</label><input name="list" list="listnames" required autofocus placeholder="tell my wife, near the store…" />' + datalist + "</div>" +
+      '<div class="field"><label>The item</label><input name="text" required /></div>' +
+      '<div class="modal-actions"><button type="button" class="btn-ghost" data-action="close-modal">Cancel</button>' +
+      '<button type="submit" class="btn-primary">Add</button></div>' +
+    "</form>"
+  );
+  document.querySelector('[data-form="add-context"]').addEventListener("submit", (e) => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target).entries());
+    if (!(data.text || "").trim() || !(data.list || "").trim()) return;
+    STATE.items.push(newItem("context", { text: data.text.trim(), list: data.list.trim() }));
+    persist(); closeModal(); toast("Added.");
+  });
+}
+
+function openAddRepairModal() {
+  openModal(
+    "<h3>Log something that slipped</h3><p class=\"hint\">No guilt — this is just data for fixing the system.</p>" +
+    '<form data-form="add-repair">' +
+      '<div class="field"><textarea name="text" required autofocus placeholder="What slipped, and what would\'ve caught it?"></textarea></div>' +
+      '<div class="modal-actions"><button type="button" class="btn-ghost" data-action="close-modal">Cancel</button>' +
+      '<button type="submit" class="btn-primary">Log privately</button></div>' +
+    "</form>"
+  );
+  document.querySelector('[data-form="add-repair"]').addEventListener("submit", (e) => {
+    e.preventDefault();
+    const data = Object.fromEntries(new FormData(e.target).entries());
+    if (!(data.text || "").trim()) return;
+    STATE.items.push(newItem("repair", { text: data.text.trim() }));
+    saveState(); scheduleDrivePush(); renderPrivate(); closeModal();
+    toast("Logged privately.");
+  });
+}
+
+/* mark helpers (edit-only; nothing is destroyed) */
+function findById(id) { return STATE.items.find((i) => i.id === id); }
+function clearInbox(id) { const i = findById(id); if (i) { i.done = true; persist(); } }
+function promiseDone(id) { const i = findById(id); if (i) { i.done = true; STATE.items = STATE.items.filter((x) => x !== i); STATE.items.push(Object.assign(i, { kind: "commitment", status: "done" })); persist(); } }
+function cycleStatus(id) {
+  const i = findById(id); if (!i) return;
+  i.status = i.status === "not started" ? "in progress" : i.status === "in progress" ? "done" : "not started";
+  persist();
+}
+function clearContext(id) { const i = findById(id); if (i) { STATE.items = STATE.items.filter((x) => x.id !== id); persist(); } }
+function cycleTheme() {
+  const order = ["auto", "light", "dark"];
+  const cur = STATE.settings.theme || "auto";
+  STATE.settings.theme = order[(order.indexOf(cur) + 1) % order.length];
+  applyTheme(); persist(); toast("Theme: " + STATE.settings.theme);
+}
+
+/* ===========================================================================
+   11. EVENT WIRING
+   =========================================================================== */
+document.body.addEventListener("click", (e) => {
+  const el = e.target.closest("[data-action]");
+  if (!el) return;
+  const action = el.dataset.action;
+  const id = el.dataset.id;
+
+  if (action === "close-modal") closeModal();
+  else if (action === "close-modal-backdrop" && e.target === el) closeModal();
+  else if (action === "open-settings") openSettingsModal();
+  else if (action === "cycle-theme") cycleTheme();
+  else if (action === "tab") { currentTab = id; if (id === "private") renderPrivate(); else render(); }
+  else if (action === "back-main") { currentTab = "today"; render(); }
+  else if (action === "add-item") openAddItemModal();
+  else if (action === "add-commitment") openAddCommitmentModal();
+  else if (action === "add-date") openAddDateModal();
+  else if (action === "add-person") openAddPersonModal();
+  else if (action === "add-context") openAddContextModal();
+  else if (action === "add-repair") openAddRepairModal();
+  else if (action === "clear-inbox") clearInbox(id);
+  else if (action === "promise-done") promiseDone(id);
+  else if (action === "cycle-status") cycleStatus(id);
+  else if (action === "clear-context") clearContext(id);
+  else if (action === "connect-google") connectGoogle();
+  else if (action === "disconnect-google") { Calendar.disconnect(); toast("Disconnected"); openSettingsModal(); }
+  else if (action === "sync-drive-now") {
+    syncFromDriveIfNewer({ surfaceErrors: true })
+      .then((r) => toast(r.pulled ? "Loaded newer data from Drive" : "Synced to Drive"))
+      .catch((err) => toast(err.message));
+  }
+  else if (action === "enable-notifications") enableNotifications();
+  else if (action === "export-backup") exportBackup();
+  else if (action === "as-toggle") { asOpen = !asOpen; renderAssistant(); }
+  else if (action === "as-close") { asOpen = false; renderAssistant(); }
+});
+
+/* ===========================================================================
+   12. STARTUP
+   =========================================================================== */
+applyTheme();
+render();
+renderAssistant();
+
+if (STATE.settings.googleClientId) {
+  Calendar.init(STATE.settings.googleClientId)
+    .then(() => Calendar.ensureToken())
+    .then((ok) => { if (ok) syncFromDriveIfNewer(); })
+    .catch((e) => console.warn("Google init skipped:", e));
+}
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./sw.js");
+}
+</script>
+</body>
+</html>
