@@ -144,6 +144,22 @@ if (read("typeof ASSISTANT_HANDLERS") === "object") {
   check("assistant can add a dated item", dt && dt.ok && dateStored);
 }
 
+// --- 4c. Sorting an inbox thought into its real home ---------------------
+if (read("typeof openSortModal") === "function") {
+  read('ASSISTANT_HANDLERS.add_item({ title: "buy milk on the way home" })');
+  const sid = read('STATE.items.filter(i => i.kind === "inbox").slice(-1)[0].id');
+  read('openSortModal("' + sid + '")');
+  check("sort modal opened", !!d.getElementById("sortDest"));
+  w.eval('document.getElementById("sortDest").value = "context";');
+  w.eval('document.getElementById("sortDest").dispatchEvent(new window.Event("change"));');
+  w.eval('document.getElementById("sf_list").value = "near the store";');
+  read('sortSave("' + sid + '")');
+  check("inbox thought filed into a context list",
+    read('STATE.items.some(i => i.id === "' + sid + '" && i.kind === "context" && i.list === "near the store")'));
+  check("filed thought is no longer in the inbox",
+    !read('STATE.items.some(i => i.id === "' + sid + '" && i.kind === "inbox")'));
+}
+
 // --- 5. Drive sync safety (stub Drive, never touch the network) ----------
 if (read("typeof DriveSync") === "object" && read("typeof syncFromDriveIfNewer") === "function") {
   w.eval(`

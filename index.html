@@ -1115,8 +1115,9 @@ function renderInbox() {
   const done = items("inbox").filter((i) => i.done);
   let out = '<div class="section-title">Inbox — dump anything, sort never</div>';
   out += inbox.length ? inbox.map((i) =>
-      itemCard('<div class="row between"><div class="maintext">' + escapeHtml(i.text) + "</div>" +
-        '<button class="btn-sm" data-action="clear-inbox" data-id="' + i.id + '" title="Clear from inbox">✓ Clear</button></div>')).join("")
+      itemCard('<div class="row between" style="gap:10px"><div class="maintext">' + escapeHtml(i.text) + "</div>" +
+        '<div class="row" style="gap:6px;flex:0 0 auto"><button class="btn-sm" data-action="sort-open" data-id="' + i.id + '">Sort →</button>' +
+        '<button class="btn-sm" data-action="clear-inbox" data-id="' + i.id + '" title="Clear from inbox">✓</button></div></div>')).join("")
     : '<div class="empty">Empty — that\'s fine. Tap <strong>Capture</strong> or tell Anchor anything you don\'t want to lose.</div>';
   if (done.length) out += '<div class="section-title">Cleared (' + done.length + ")</div>" + done.slice(-5).map((i) => itemCard('<span class="faint">' + escapeHtml(i.text) + "</span>")).join("");
   return out;
@@ -1322,6 +1323,56 @@ function openAddRepairModal() {
   });
 }
 
+/* Sort an inbox thought into its real home — converts the item in place so it
+   keeps its original capture time, then jumps you to where it landed. */
+function openSortModal(id) {
+  const it = findById(id);
+  if (!it) return;
+  const wife = escapeHtml(STATE.settings.wifeName || "My Wife");
+  const existing = [];
+  items("context").forEach((i) => { if (!existing.includes(i.list)) existing.push(i.list); });
+  openModal(
+    "<h3>Where should this go?</h3>" +
+    '<div class="field"><label>The thought</label><textarea id="sortText">' + escapeHtml(it.text) + "</textarea></div>" +
+    '<div class="field"><label>File it as…</label><select id="sortDest">' +
+      '<option value="commitment">A commitment — something I\'ll do</option>' +
+      '<option value="date">A date — something time-bound</option>' +
+      '<option value="person">A note about ' + wife + "</option>" +
+      '<option value="context">A context list item</option>' +
+    "</select></div>" +
+    '<div id="sortFields"></div>' +
+    '<div class="modal-actions"><button type="button" class="btn-ghost" data-action="close-modal">Cancel</button>' +
+    '<button type="button" class="btn-primary" data-action="sort-save" data-id="' + id + '">File it</button></div>'
+  );
+  const dest = document.getElementById("sortDest");
+  const fields = document.getElementById("sortFields");
+  function renderFields() {
+    const v = dest.value;
+    if (v === "commitment") fields.innerHTML = '<div class="field"><label>For whom? (optional)</label><input id="sf_who" placeholder="my wife, work…" /></div>';
+    else if (v === "date") fields.innerHTML = '<div class="field"><label>When?</label><input type="date" id="sf_date" /></div><div class="field"><label>Leave-by / prep (optional)</label><input id="sf_leave" placeholder="leave by 1:30" /></div>';
+    else if (v === "person") fields.innerHTML = '<div class="field"><label>Which kind?</label><select id="sf_section"><option value="told">Something she told me</option><option value="promise">A promise I made her</option><option value="situation">An ongoing situation</option><option value="pref">Something that matters to her</option></select></div>';
+    else fields.innerHTML = '<div class="field"><label>Which list?</label><input id="sf_list" list="sortlists" placeholder="tell my wife, near the store…" />' + (existing.length ? '<datalist id="sortlists">' + existing.map((n) => '<option value="' + escapeHtml(n) + '">').join("") + "</datalist>" : "") + "</div>";
+  }
+  dest.addEventListener("change", renderFields);
+  renderFields();
+}
+
+function sortSave(id) {
+  const it = findById(id);
+  if (!it) return;
+  const val = (elId) => { const e = document.getElementById(elId); return e ? String(e.value || "").trim() : ""; };
+  const text = val("sortText");
+  if (!text) { toast("Add some text first."); return; }
+  const dest = document.getElementById("sortDest").value;
+  it.text = text;
+  delete it.done;
+  if (dest === "commitment") { it.kind = "commitment"; it.who = val("sf_who"); it.status = "not started"; currentTab = "commitments"; }
+  else if (dest === "date") { const d = val("sf_date"); if (!d) { toast("Pick a date."); return; } it.kind = "date"; it.date = d; it.leaveBy = val("sf_leave"); currentTab = "dates"; pushDateToCalendar(it); }
+  else if (dest === "person") { it.kind = "person"; it.section = val("sf_section") || "told"; it.person = STATE.settings.wifeName || "My Wife"; currentTab = "people"; }
+  else { const l = val("sf_list"); if (!l) { toast("Name the list."); return; } it.kind = "context"; it.list = l; currentTab = "lists"; }
+  persist(); closeModal(); toast("Filed — nice.");
+}
+
 /* mark helpers (edit-only; nothing is destroyed) */
 function findById(id) { return STATE.items.find((i) => i.id === id); }
 function clearInbox(id) { const i = findById(id); if (i) { i.done = true; persist(); } }
@@ -1361,6 +1412,8 @@ document.body.addEventListener("click", (e) => {
   else if (action === "add-person") openAddPersonModal();
   else if (action === "add-context") openAddContextModal();
   else if (action === "add-repair") openAddRepairModal();
+  else if (action === "sort-open") openSortModal(id);
+  else if (action === "sort-save") sortSave(id);
   else if (action === "clear-inbox") clearInbox(id);
   else if (action === "promise-done") promiseDone(id);
   else if (action === "cycle-status") cycleStatus(id);
