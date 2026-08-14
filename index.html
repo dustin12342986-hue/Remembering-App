@@ -1103,9 +1103,9 @@ function openSettingsModal() {
       "</div>" +
       (connected ? '<div class="hr"></div><div class="row between"><div><strong style="font-size:13px">Cross-device sync</strong><div class="hint">Saves to your own Google Drive; loads on any device signed in with the same account.</div></div><button type="button" class="btn-sm" data-action="sync-drive-now">Sync now</button></div>' : "") +
       '<div class="hr"></div>' +
-      "<p class=\"hint\">Anchor talks to Claude through your own Cloudflare Worker, so no API key lives in this file. One Worker serves every app on this origin.</p>" +
+      "<p class=\"hint\">" + escapeHtml(APP.assistantName) + " talks to Claude through your own Cloudflare Worker, so no API key lives in this file. One Worker serves every app on this origin.</p>" +
       '<div class="field"><label>Worker Proxy URL</label><input type="text" name="assistantProxyUrl" value="' + escapeHtml(STATE.settings.assistantProxyUrl || "") + '" placeholder="https://your-worker.your-subdomain.workers.dev" /></div>' +
-      '<label class="row" style="margin-bottom:10px;font-size:13px"><input type="checkbox" name="assistantCheckins" ' + (STATE.settings.assistantCheckins ? "checked" : "") + ' style="width:16px;height:16px;margin-right:6px" /> Let Anchor check in on its own (off by default)</label>' +
+      '<label class="row" style="margin-bottom:10px;font-size:13px"><input type="checkbox" name="assistantCheckins" ' + (STATE.settings.assistantCheckins ? "checked" : "") + ' style="width:16px;height:16px;margin-right:6px" /> Let ' + escapeHtml(APP.assistantName) + ' check in on its own (off by default)</label>' +
       '<button type="submit" class="btn-sm">Save assistant settings</button>' +
       '<div class="hr"></div>' +
       '<div class="row between"><div><strong style="font-size:13px">Notifications</strong><div class="hint">Only while a tab with this app is open.</div></div>' +
@@ -1221,7 +1221,7 @@ function renderToday(wife) {
   if (tells.length) { any = true; out += tells.slice(0, 3).map((i) => '<div style="padding:6px 0"><span class="dot"></span>' + escapeHtml(i.text) + ' <span class="faint">— tell ' + wife + "</span></div>").join(""); }
   const otherCommits = openCommits.filter((i) => !wifeOpen.includes(i));
   if (otherCommits.length) { any = true; out += otherCommits.map((i) => '<div style="padding:6px 0"><span class="dot"></span>' + escapeHtml(i.text) + (i.who ? ' <span class="faint">— ' + escapeHtml(i.who) + "</span>" : "") + "</div>").join(""); }
-  if (!any) out += '<div class="empty">Nothing needs you right now. When something lands in your head, tap <strong>Capture</strong> or just tell Anchor.</div>';
+  if (!any) out += '<div class="empty">Nothing needs you right now. When something lands in your head, tap <strong>Capture</strong> or just tell ' + escapeHtml(APP.assistantName) + '.</div>';
   out += "</div>";
 
   if (inbox.length) out += '<div class="section-title">Unsorted in your inbox (' + inbox.length + ')</div>' + itemCard('<span class="faint">' + inbox.length + " thing(s) waiting — no rush. Open the Inbox tab when you want to sort, or leave them.</span>");
@@ -1236,7 +1236,7 @@ function renderInbox() {
       itemCard('<div class="row between" style="gap:10px"><div class="maintext">' + escapeHtml(i.text) + "</div>" +
         '<div class="row" style="gap:6px;flex:0 0 auto"><button class="btn-sm" data-action="sort-open" data-id="' + i.id + '">Sort →</button>' +
         '<button class="btn-sm" data-action="clear-inbox" data-id="' + i.id + '" title="Clear from inbox">✓</button></div></div>')).join("")
-    : '<div class="empty">Empty — that\'s fine. Tap <strong>Capture</strong> or tell Anchor anything you don\'t want to lose.</div>';
+    : '<div class="empty">Empty — that\'s fine. Tap <strong>Capture</strong> or tell ' + escapeHtml(APP.assistantName) + ' anything you don\'t want to lose.</div>';
   if (done.length) out += '<div class="section-title">Cleared (' + done.length + ")</div>" + done.slice(-5).map((i) => itemCard('<span class="faint">' + escapeHtml(i.text) + "</span>")).join("");
   return out;
 }
@@ -1254,7 +1254,7 @@ function renderPeople(wife) {
     return '<div class="section-title">' + s.t + "</div>" + rows.map((n) => itemCard('<div class="row between"><div class="maintext">' + escapeHtml(n.text) + "</div>" +
       (s.k === "promise" ? '<button class="btn-sm" data-action="promise-done" data-id="' + n.id + '">✓ Done</button>' : "") + "</div>")).join("");
   }).join("");
-  if (!any) out += '<div class="empty">No notes yet. Add anything she\'s told you, asked you to remember, or that matters to her — or just tell Anchor "note for my wife: …".</div>';
+  if (!any) out += '<div class="empty">No notes yet. Add anything she\'s told you, asked you to remember, or that matters to her — or just tell ' + escapeHtml(APP.assistantName) + ' "note for my wife: …".</div>';
   return out;
 }
 
@@ -1310,7 +1310,7 @@ function renderPrivate() {
     '<p class="tagline">Only for spotting patterns in what slips — never a guilt list. Nothing here is ever thrown in your face.</p>' +
     '<div class="row" style="margin-bottom:14px"><button class="btn-primary" data-action="add-repair">+ Log something that slipped</button></div>' +
     (reps.length ? reps.slice().reverse().map((i) => itemCard('<div class="maintext">' + escapeHtml(i.text) + '</div><div class="hint" style="margin-top:4px">' + fmtDate((new Date(i.createdAt)).toISOString().slice(0, 10)) + "</div>")).join("")
-      : '<div class="empty">Nothing logged. When something slips and it stings, note it here — then every few weeks ask Anchor "what patterns show up?" That\'s where the real fixes come from.</div>');
+      : '<div class="empty">Nothing logged. When something slips and it stings, note it here — then every few weeks ask ' + escapeHtml(APP.assistantName) + ' "what patterns show up?" That\'s where the real fixes come from.</div>');
 }
 
 /* ---- add modals ---- */
