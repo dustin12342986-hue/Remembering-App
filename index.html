@@ -136,6 +136,21 @@
   .toast { background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; box-shadow: 0 4px 14px rgba(20,30,50,0.3); }
 
   /* Assistant chat widget */
+  /* Calm sync veil — shown while Drive is still handing over, so a second
+     device never flashes an empty list that looks like lost data. */
+  .sync-veil { position: fixed; inset: 0; z-index: 90; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 16px; padding: 24px; text-align: center;
+    background: var(--bg); color: var(--text); }
+  .sync-veil .sv-mark { width: 58px; height: 58px; border-radius: 50%; opacity: 0.92; }
+  .sync-veil .sv-title { font-size: 16px; font-weight: 600; }
+  .sync-veil .sv-sub { font-size: 13px; color: var(--muted); max-width: 320px; line-height: 1.5; }
+  .sync-veil .sv-dots { display: flex; gap: 6px; }
+  .sync-veil .sv-dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+    opacity: 0.35; animation: svPulse 1.6s ease-in-out infinite; }
+  .sync-veil .sv-dots span:nth-child(2) { animation-delay: 0.22s; }
+  .sync-veil .sv-dots span:nth-child(3) { animation-delay: 0.44s; }
+  @keyframes svPulse { 0%, 100% { opacity: 0.28; } 50% { opacity: 0.85; } }
+  @media (prefers-reduced-motion: reduce) { .sync-veil .sv-dots span { animation: none; opacity: 0.5; } }
   .as-mark { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; vertical-align: middle; }
   .as-header .as-mark { width: 20px; height: 20px; margin-right: 7px; }
   .as-bubble { position: fixed; right: 18px; bottom: 18px; min-width: 54px; height: 54px; padding: 0 18px; border-radius: 27px; background: var(--accent); color: #fff; border: none; font-size: 15px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(20,30,50,0.28); z-index: 70; display: flex; align-items: center; gap: 8px; font-family: inherit; }
@@ -211,6 +226,14 @@
     --dx: 0px; --dy: -260px; transform-origin: 50% 100%;
     animation: pop 15s linear forwards; }
   .thought:hover, .thought:active { animation-play-state: paused; border-color: var(--accent); }
+  /* Time-sensitive items (dates) and commitments read as slightly more
+     present — heavier text and the amber attention edge — so the stream
+     doesn't flatten into wallpaper. No flashing, no saturated fills, and
+     the drift/fade mechanics are untouched. */
+  .thought.attn { border-color: var(--attention); border-width: 1.5px; }
+  .thought.attn .b-text { font-weight: 600; letter-spacing: -0.005em; }
+  .thought.attn .b-emoji { opacity: 0.95; }
+  .thought.linger .b-text { font-weight: 400; opacity: 0.88; }
   .thought .b-emoji { font-size: 18px; flex: 0 0 auto; }
   /* Pops open from the shockwave, then rises steadily in one direction and fades */
   @keyframes pop {
@@ -237,6 +260,7 @@
 <div id="modalRoot"></div>
 <div id="toastRoot"></div>
 <div id="asRoot"></div>
+<div id="syncRoot"></div>
 
 <script>
 "use strict";
@@ -793,6 +817,18 @@ const ASSISTANT_SYSTEM =
   "verdicts. If something sounds like genuine danger to him or someone else, say so directly and point him " +
   "toward real human support rather than trying to be the whole answer.\n\n" +
 
+  "RELATIONAL CAPTURE — ZERO FRICTION. When he mentions anything about a person, route it yourself with " +
+  "add_person_note and pick the section silently. Never ask him to choose a category, tag or form — in a live " +
+  "conversation that friction means he just won't do it. 'My wife mentioned she loves those green olives' goes " +
+  "straight to her notes as a preference. Confirm in one short reassuring line ('Got it, saved to your notes " +
+  "for your wife.') and stop there. No follow-up questions unless something is genuinely ambiguous.\n\n" +
+
+  "LINGERING INBOX THOUGHTS. Some captures sit in the inbox for weeks. That is completely fine and is NOT a " +
+  "backlog to clear — the inbox never needs to reach zero. If an older thought comes up, mention it with total " +
+  "neutrality and zero pressure, e.g. 'This thought about the garage has been floating around for a bit. Want " +
+  "me to turn it into a commitment, or should we just let it drift?' Never imply he's fallen behind, never " +
+  "count them at him, and if he wants to leave it, that's a real and good answer.\n\n" +
+
   "ATTACHMENTS. He can send you photos and documents. When he does, actually read what's there and respond to " +
   "the real content, not generic advice. If it's something dense — a bill, a form, a letter, an appointment " +
   "summary — break it down: what actually matters, and what the next action is. Then offer to capture that " +
@@ -818,7 +854,7 @@ const ASSISTANT_TOOLS = [
     input_schema: { type: "object", properties: { text: { type: "string" }, status: { type: "string", description: "not started | in progress | done" } }, required: ["text", "status"] } },
   { name: "add_date", description: "Add something time-bound (appointment, deadline, event). Creates a Google Calendar reminder too when Google is connected.",
     input_schema: { type: "object", properties: { text: { type: "string" }, date: { type: "string", description: "YYYY-MM-DD" }, leaveBy: { type: "string", description: "Optional prep/leave-by note, e.g. 'leave by 1:30'." } }, required: ["text", "date"] } },
-  { name: "add_person_note", description: "Add a note about a person (default: his wife). Section is one of: promise, told, situation, pref.",
+  { name: "add_person_note", description: "Add a note about a person (default: his wife). YOU choose the section silently from what he said — never ask him to pick one. 'She mentioned she loves those green olives' -> pref. 'She told me the appointment moved' -> told. 'I said I'd call her mum' -> promise. 'Her work thing is still going on' -> situation. Section is one of: promise, told, situation, pref.",
     input_schema: { type: "object", properties: { text: { type: "string" }, section: { type: "string", description: "promise | told | situation | pref" }, person: { type: "string", description: "Defaults to his wife." } }, required: ["text"] } },
   { name: "add_context", description: "Add an item to a situational list ('tell my wife', 'near the store', 'ask the doctor').",
     input_schema: { type: "object", properties: { text: { type: "string" }, list: { type: "string" } }, required: ["text", "list"] } },
@@ -883,7 +919,7 @@ const ASSISTANT_HANDLERS = {
     const person = (input.person || STATE.settings.wifeName || "My Wife").trim();
     STATE.items.push(newItem("person", { text, section, person }));
     currentTab = "people"; persist();
-    return { ok: true, message: "Saved to " + person + "'s note: " + text };
+    return { ok: true, message: "Saved to your notes for " + person + "." };
   },
   add_context: (input) => {
     const text = String(input.text || "").trim();
@@ -928,6 +964,11 @@ function buildAssistantContext() {
   const ctx = items("context");
   lines.push("", "Inbox (" + inbox.length + "):");
   inbox.slice(0, 15).forEach((i) => lines.push("- " + i.text));
+  const aged = typeof lingeringInbox === "function" ? lingeringInbox() : [];
+  if (aged.length) {
+    lines.push("", "Inbox thoughts that have been sitting a while (NOT a backlog, no pressure):");
+    aged.slice(0, 6).forEach((i) => lines.push("- " + i.text));
+  }
   lines.push("", "Open commitments (" + commits.length + "):");
   commits.slice(0, 20).forEach((i) => lines.push("- " + i.text + (i.who ? " [for " + i.who + "]" : "") + " — " + (i.status || "not started")));
   lines.push("", "Upcoming dates:");
@@ -947,6 +988,32 @@ let asApiMessages = [];
 // Pending attachment: { kind:"image"|"pdf", base64, mediaType, name, previewSrc }
 let asAttachment = null;
 const AS_MAX_FILE_BYTES = 4 * 1024 * 1024;
+
+/* ---- Calm sync handshake -------------------------------------------------
+   On a second device, Google auth + the Drive pull take a moment. Rendering
+   the normal empty shell in that window looks exactly like data loss, which
+   is a genuinely frightening thing to see. Show a reassuring state instead,
+   and only ever while a pull is actually plausible. */
+let _syncing = false;
+function renderSyncVeil() {
+  const root = document.getElementById("syncRoot");
+  if (!root) return;
+  if (!_syncing) { root.innerHTML = ""; return; }
+  root.innerHTML =
+    '<div class="sync-veil">' +
+      (APP.assistantIcon ? '<img class="sv-mark" src="' + APP.assistantIcon + '" alt="" />' : "") +
+      '<div class="sv-title">Syncing your thoughts…</div>' +
+      '<div class="sv-sub">Everything is safe — just pulling your latest from your private Drive folder.</div>' +
+      '<div class="sv-dots"><span></span><span></span><span></span></div>' +
+    "</div>";
+}
+function setSyncing(on) { _syncing = !!on; renderSyncVeil(); }
+
+/* Only worth showing when there's a real chance data is inbound: Google is
+   configured, and locally we have nothing (or nearly nothing) to show. */
+function shouldShowSyncVeil() {
+  return !!STATE.settings.googleClientId && (!STATE.items || STATE.items.length === 0);
+}
 
 function assistantMark() {
   return APP.assistantIcon
@@ -1297,13 +1364,36 @@ const STREAM_CAT = {
   inbox: { label: "Unsorted thought", tab: "inbox", tabLabel: "Inbox", emoji: "🧠" },
 };
 let _streamTimer = null, _streamPaused = false, _streamIdx = 0, _streamRun = false, _streamRAF = null;
+/* An inbox thought counts as "lingering" after a week. This is NEVER used to
+   nag or to imply the inbox should be emptied — it only earns the thought a
+   turn in the stream so it can drift past again. */
+const LINGER_DAYS = 7;
+function isLingering(i) {
+  return i.kind === "inbox" && !i.done &&
+    (Date.now() - (i.createdAt || Date.now())) > LINGER_DAYS * 86400000;
+}
+function lingeringInbox() { return items("inbox").filter(isLingering); }
+
 function streamPool() {
   const pool = [];
   items("date").filter((i) => daysUntil(i.date) >= 0 && daysUntil(i.date) <= 7).sort((a, b) => a.date.localeCompare(b.date)).forEach((i) => pool.push(i));
   items("commitment").filter((i) => i.status !== "done").forEach((i) => pool.push(i));
   items("context").forEach((i) => pool.push(i));
   items("person").filter((i) => i.section === "promise").forEach((i) => pool.push(i));
-  items("inbox").filter((i) => !i.done).forEach((i) => pool.push(i));
+  items("inbox").filter((i) => !i.done && !isLingering(i)).forEach((i) => pool.push(i));
+
+  /* Serendipity: older inbox thoughts would otherwise sit at the very end of a
+     long pool and effectively never surface — the junk-drawer graveyard. Spread
+     them through the rotation instead so they wander past now and then. No
+     badge, no count, no "you should deal with this". */
+  const aged = lingeringInbox();
+  if (aged.length) {
+    const gap = Math.max(3, Math.ceil(pool.length / (aged.length + 1)));
+    aged.forEach((it, n) => {
+      const at = Math.min(pool.length, gap * (n + 1) + n);
+      pool.splice(at, 0, it);
+    });
+  }
   return pool;
 }
 function bubbleMeta(i) { return STREAM_CAT[i.kind] || { label: "Thought", tab: "today", tabLabel: "Today", emoji: "•" }; }
@@ -1371,6 +1461,13 @@ function startStream() {
     el.setAttribute("data-action", "bubble"); el.setAttribute("data-id", it.id);
     el.style.background = hexToRgba(color, 0.16);
     el.style.borderColor = hexToRgba(color, 0.55);
+    // Weight, not colour, carries the difference — see .thought.attn
+    if (it.kind === "date" || it.kind === "commitment") {
+      el.classList.add("attn");
+      el.style.borderColor = "";        // let the amber edge show through
+    } else if (isLingering(it)) {
+      el.classList.add("linger");
+    }
     // Travel is deliberately short: the stage can be as small as 360px tall,
     // and the bubble is up to ~70% of its width. These distances keep the
     // thought fully inside the frame for its whole life, and over 15s they
@@ -1872,10 +1969,14 @@ render();
 renderAssistant();
 
 if (STATE.settings.googleClientId) {
+  if (shouldShowSyncVeil()) setSyncing(true);
+  // Never let the veil outlive a stalled network — it must always come down.
+  const veilTimeout = setTimeout(() => setSyncing(false), 12000);
   Calendar.init(STATE.settings.googleClientId)
     .then(() => Calendar.ensureToken())
-    .then((ok) => { if (ok) syncFromDriveIfNewer(); })
-    .catch((e) => console.warn("Google init skipped:", e));
+    .then((ok) => (ok ? syncFromDriveIfNewer() : null))
+    .catch((e) => console.warn("Google init skipped:", e))
+    .then(() => { clearTimeout(veilTimeout); setSyncing(false); });
 }
 
 if ("serviceWorker" in navigator) {
