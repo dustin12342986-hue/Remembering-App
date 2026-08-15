@@ -246,6 +246,12 @@ if (read("typeof assistantSend") === "function") {
 
 // --- 8. Blue Bonnet identity & boundaries ---------------------------------
 check("assistant is Blue Bonnet", read("APP.assistantName") === "Blue Bonnet");
+// The bubble mark must be a real image, not an emoji — 🪻 is missing from
+// plenty of older Android/Windows fonts and renders as a blank box.
+const _bub = d.querySelector(".as-bubble");
+check("bubble shows the flower mark", !!(_bub && _bub.querySelector("img.as-mark")));
+check("bubble mark is an embedded image",
+  !!(_bub && (_bub.querySelector("img.as-mark") || {}).src || "").toString().startsWith("data:image/"));
 check("no stray 'Anchor' left in the UI", !/Anchor/.test(d.body.innerHTML));
 if (typeof read("ASSISTANT_SYSTEM") === "string") {
   const sys = read("ASSISTANT_SYSTEM");
