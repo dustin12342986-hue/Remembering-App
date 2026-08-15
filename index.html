@@ -209,7 +209,12 @@
     84%  { opacity: 1; transform: translate(calc(-50% - 22px), -220px); }
     100% { opacity: 0; transform: translate(-50%, -268px) scale(0.97); }
   }
-  @media (prefers-reduced-motion: reduce) { .brain { animation: none; } .thought { animation: none; } }
+  .stream-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; }
+  .brain { z-index: 1; }
+  .thought { z-index: 2; }
+  .brain.buzz { animation: brainPulse 3.8s ease-in-out infinite, brainBuzz 0.16s steps(2) infinite; }
+  @keyframes brainBuzz { 0% { transform: translateX(-50%) translate(-1.5px, 0); } 100% { transform: translateX(-50%) translate(1.5px, 1px); } }
+  @media (prefers-reduced-motion: reduce) { .brain { animation: none; } .thought { animation: none; } .stream-stage canvas { display: none; } }
 </style>
 </head>
 <body>
@@ -1164,7 +1169,7 @@ const STREAM_CAT = {
   person: { label: "About your wife", tab: "people", tabLabel: "People", emoji: "💛" },
   inbox: { label: "Unsorted thought", tab: "inbox", tabLabel: "Inbox", emoji: "🧠" },
 };
-let _streamTimer = null, _streamPaused = false, _streamIdx = 0, _streamRun = false;
+let _streamTimer = null, _streamPaused = false, _streamIdx = 0, _streamRun = false, _streamRAF = null;
 function streamPool() {
   const pool = [];
   items("date").filter((i) => daysUntil(i.date) >= 0 && daysUntil(i.date) <= 7).sort((a, b) => a.date.localeCompare(b.date)).forEach((i) => pool.push(i));
@@ -1196,26 +1201,42 @@ function renderStream(wife) {
     out += '<div class="hint" style="margin:2px 0 8px">Calm mode — your day, gently listed. Tap any to act on it.</div>';
     return out + pool.slice(0, 14).map(bubbleCard).join("");
   }
-  out += '<div class="stream-stage" id="streamStage"><div class="brain" id="streamBrain">🧠</div></div>';
-  out += '<div class="hint" style="text-align:center;margin-top:6px">One thought at a time, drifting up from your brain. Tap it to act — or open a tab to manage things.</div>';
+  out += '<div class="stream-stage" id="streamStage"><canvas id="streamCanvas"></canvas><div class="brain" id="streamBrain">🧠</div></div>';
+  out += '<div class="hint" style="text-align:center;margin-top:6px">Your busy mind, settling — and the one thing to notice, rising out of the calm. Tap it to act.</div>';
   return out;
 }
-function stopStream() { _streamRun = false; if (_streamTimer) { clearTimeout(_streamTimer); _streamTimer = null; } }
+function streamAccent() {
+  const t = STATE.settings.theme;
+  if (t === "custom") return STATE.settings.accentColor || "#7c5cd6";
+  if (t === "dark") return "#9b8cf0";
+  if (t === "bland") return "#6b7280";
+  if (t === "vibrant") return "#7c5cd6";
+  return "#6d5cd6";
+}
+function stopStream() {
+  _streamRun = false;
+  if (_streamTimer) { clearTimeout(_streamTimer); _streamTimer = null; }
+  if (_streamRAF) { cancelAnimationFrame(_streamRAF); _streamRAF = null; }
+}
+/* The story loop: CHAOS (a restless mind buzzing) -> TAME (a calming wave
+   settles it) -> CALM (one clear thought rises, ~8s) -> repeat. */
 function startStream() {
   stopStream();
   if (currentTab !== "stream" || _streamPaused) return;
   const stage = document.getElementById("streamStage");
-  if (!stage) return;                 // static / empty mode — nothing to animate
+  if (!stage) return;                 // static / empty mode
   const pool = streamPool();
   if (!pool.length) return;
   const pal = headerPalette();
   const brain = document.getElementById("streamBrain");
+  const canvas = document.getElementById("streamCanvas");
   _streamRun = true; _streamIdx = 0;
-  function next() {
-    if (!_streamRun) return;
-    const st = document.getElementById("streamStage");
-    if (!st) { stopStream(); return; }
-    const old = st.querySelector(".thought"); if (old) old.remove();   // only ever ONE at a time
+
+  const CHAOS = 2200, TAME = 1700, CALM = 8300;
+
+  function spawnThought() {
+    const st = document.getElementById("streamStage"); if (!st) return;
+    const old = st.querySelector(".thought"); if (old) old.remove();
     const it = pool[_streamIdx % pool.length]; _streamIdx++;
     const c = bubbleMeta(it), color = pal[_streamIdx % pal.length];
     const el = document.createElement("button");
@@ -1223,12 +1244,65 @@ function startStream() {
     el.setAttribute("data-action", "bubble"); el.setAttribute("data-id", it.id);
     el.style.background = hexToRgba(color, 0.16);
     el.style.borderColor = hexToRgba(color, 0.55);
+    el.style.animationDuration = (CALM / 1000) + "s";
     el.innerHTML = '<span class="b-emoji">' + c.emoji + '</span><span class="b-text">' + escapeHtml(it.text) + "</span>";
-    el.addEventListener("animationend", function () { el.remove(); if (_streamRun) _streamTimer = setTimeout(next, 1200); });
-    if (brain) { brain.classList.remove("fire"); void brain.offsetWidth; brain.classList.add("fire"); }  // brain flares as the thought fires
     st.appendChild(el);
   }
-  next();
+  function clearThought() { const st = document.getElementById("streamStage"); if (st) { const o = st.querySelector(".thought"); if (o) o.remove(); } }
+
+  let ctx = null;
+  try { ctx = canvas && canvas.getContext && canvas.getContext("2d"); } catch (e) { ctx = null; }
+  if (!ctx) { spawnThought(); return; }   // no-canvas env (tests): just show a thought
+
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const rect = canvas.getBoundingClientRect();
+  const W = Math.max(1, Math.floor(rect.width)), H = Math.max(1, Math.floor(rect.height));
+  canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const accent = streamAccent();
+
+  const N = 15, P = [];
+  for (let i = 0; i < N; i++) P.push({ x: Math.random() * W, y: Math.random() * H, a: Math.random() * Math.PI * 2, r: 1.6 + Math.random() * 2.2, c: pal[i % pal.length] });
+  let rings = [];
+  let phase = "chaos", phaseStart = 0, calm = 0, started = false;
+
+  function setPhase(p, ts) {
+    phase = p; phaseStart = ts;
+    if (p === "tame") { rings.push({ r: 18, a: 0.55 }); if (brain) { brain.classList.remove("buzz"); brain.classList.remove("fire"); void brain.offsetWidth; brain.classList.add("fire"); } }
+    else if (p === "calm") { spawnThought(); }
+    else if (p === "chaos") { clearThought(); if (brain) brain.classList.add("buzz"); }
+  }
+
+  function loop(ts) {
+    if (!_streamRun) return;
+    if (!started) { started = true; setPhase("chaos", ts); }
+    const el = ts - phaseStart;
+    if (phase === "chaos" && el >= CHAOS) setPhase("tame", ts);
+    else if (phase === "tame" && el >= TAME) setPhase("calm", ts);
+    else if (phase === "calm" && el >= CALM) setPhase("chaos", ts);
+
+    const target = phase === "chaos" ? 0 : phase === "tame" ? Math.min(1, el / TAME) : 1;
+    calm += (target - calm) * 0.07;
+
+    const bx = W / 2, by = H - 64;
+    ctx.clearRect(0, 0, W, H);
+    for (const p of P) {
+      const speed = 1.9 * (1 - calm) + 0.22 * calm;
+      const jitter = (1 - calm) * 0.85;
+      p.a += (Math.random() - 0.5) * jitter;
+      const dx = bx - p.x, dy = by - p.y, d = Math.hypot(dx, dy) || 1;
+      const pull = calm * 0.18;
+      p.x += Math.cos(p.a) * speed + (dx / d) * pull * speed;
+      p.y += Math.sin(p.a) * speed + (dy / d) * pull * speed;
+      if (p.x < 0 || p.x > W) { p.a = Math.PI - p.a; p.x = Math.max(0, Math.min(W, p.x)); }
+      if (p.y < 0 || p.y > H) { p.a = -p.a; p.y = Math.max(0, Math.min(H, p.y)); }
+      ctx.fillStyle = hexToRgba(p.c, 0.5 * (1 - calm) + 0.1 * calm);
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+    }
+    rings = rings.filter((r) => r.a > 0.02);
+    for (const r of rings) { r.r += 2.3; r.a *= 0.965; ctx.strokeStyle = hexToRgba(accent, r.a); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(bx, by, r.r, 0, Math.PI * 2); ctx.stroke(); }
+    _streamRAF = requestAnimationFrame(loop);
+  }
+  _streamRAF = requestAnimationFrame(loop);
 }
 function openBubbleModal(id) {
   const it = findById(id);
