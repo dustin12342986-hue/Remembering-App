@@ -31,7 +31,7 @@ Everything is in **`index.html`** (HTML + CSS + JS, single file, on purpose).
 
 ## Use
 
-Talk to **Blue Bonnet** (bottom corner): "remember I told my wife I'd fix the fence
+Talk to **Anchor** (bottom corner): "remember I told my wife I'd fix the fence
 latch", "dentist next Thursday 2pm, leave by 1:30", "note for my wife — her
 sister visits the 20th". Or tap **+ Capture** to dump a thought, then **Sort →**
 to file it. Five appearance themes via 🎨 (Light, Dark, Bland, Vibrant, Custom

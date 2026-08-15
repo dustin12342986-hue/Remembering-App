@@ -151,15 +151,6 @@
   .as-input-row { display: flex; gap: 6px; padding: 10px; border-top: 1px solid var(--border); }
   .as-input-row input { flex: 1; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 15px; background: var(--surface); color: var(--text); }
   .as-input-row button { background: var(--accent); color: #fff; border: none; border-radius: 10px; padding: 0 15px; cursor: pointer; font-size: 14px; font-weight: 700; }
-  .as-input-row .as-attach { background: var(--surface); color: var(--muted); border: 1px solid var(--border); padding: 0 11px; font-size: 16px; font-weight: 400; }
-  .as-input-row .as-attach:hover { color: var(--text); }
-  .as-attach-chip { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--border); background: var(--accent-soft); }
-  .as-attach-chip img { width: 34px; height: 34px; object-fit: cover; border-radius: 7px; }
-  .as-attach-chip .as-doc { width: 34px; height: 34px; border-radius: 7px; background: var(--surface); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 15px; }
-  .as-attach-chip span { flex: 1; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .as-attach-chip button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 15px; padding: 2px 4px; }
-  .as-text img.as-thumb { max-width: 190px; border-radius: 9px; display: block; margin-bottom: 7px; }
-  .as-text .as-filename { font-size: 12px; opacity: .85; display: block; margin-bottom: 6px; }
 
   /* Vibrant + custom get gradient accents (the logo colors) */
   html[data-theme="vibrant"] .btn-primary,
@@ -187,6 +178,14 @@
   .tw-dark { background: linear-gradient(135deg,#1c2130,#3a82d0); }
   .tw-bland { background: linear-gradient(135deg,#e8eaed,#b8bcc4); }
   .tw-vibrant { background: linear-gradient(120deg,#2ec4b6,#3a82d0,#7c5cd6,#e056a0,#f59e42); }
+
+  /* Auto-rotating queue */
+  .queue-box > .card { animation: qfade 0.28s ease; }
+  @keyframes qfade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .queue-box > .card { animation: none; } }
+  .queue-ctrl { display: flex; align-items: center; gap: 6px; margin: 4px 0 2px; }
+  .qbtn { border: 1px solid var(--border); background: var(--surface); color: var(--muted); min-width: 36px; height: 33px; border-radius: 9px; cursor: pointer; font-size: 15px; font-family: inherit; }
+  .qbtn:hover { border-color: var(--accent); color: var(--accent); }
 </style>
 </head>
 <body>
@@ -207,8 +206,8 @@ const APP = {
   storageKey: "remembering-v1",
   driveFileName: "remembering-state.json",
   tokenSessionKey: "remembering-gcal-token",
-  assistantName: "Blue Bonnet",       // rename any time in the code
-  assistantEmoji: "🪻",           // the bluebonnet — same assistant across the ecosystem
+  assistantName: "Anchor",            // rename any time in the code
+  assistantEmoji: "⚓",           // anchor — calm, "holds you steady"
   // Same GitHub Pages origin as your other app(s), so ONE Google Client ID and
   // ONE Cloudflare Worker cover everything. This inherits both automatically.
   siblingStorageKeys: ["adulting-state-v1"],
@@ -239,6 +238,9 @@ function defaultState() {
       notificationsEnabled: false,
       theme: "light",                // light | dark | bland | vibrant | custom
       accentColor: "#7c5cd6",        // used when theme === "custom"
+      queueRotate: true,             // auto-scroll long lists a few at a time
+      queueSeconds: 4,               // rotation interval
+      queueWindow: 3,                // how many cards visible at once
       wifeName: "My Wife",           // label only; edit in Settings
     },
   };
@@ -700,53 +702,7 @@ const ASSISTANT_SYSTEM =
   "TONE (important): calm, warm, never any guilt. Never say 'overdue', 'late', 'behind', or 'you forgot again'. " +
   "Use neutral words: 'not started', 'in progress', 'done'. No pressure, no streaks. " +
   "You can add and update, but you NEVER delete — that stays a manual action he does on purpose. " +
-  "Keep replies short and concrete. If you're unsure what he means, capture it anyway and ask one short question.\n\n" +
-
-  "WHO YOU ARE. You're Blue Bonnet — the same assistant across his apps, built specifically for how ADHD, " +
-  "dyslexic and autistic minds actually work, not a generic assistant with a friendly voice. General assistants " +
-  "are trained on data that skews neurotypical; they give confident, well-formed answers that don't account for " +
-  "how these brains handle instructions, motivation, overwhelm and follow-through. Closing that gap is your job.\n\n" +
-
-  "HOW YOU COMMUNICATE.\n" +
-  "- Break things down by default. Smaller steps and one concrete next action, never a dense wall of text.\n" +
-  "- Design for follow-through, not information delivery. Momentum matters as much as accuracy.\n" +
-  "- If an explanation isn't landing, explain it a different way rather than repeating it louder or longer.\n" +
-  "- Name what's general vs. what's adapted. When you give psychological or behavioural framing, say plainly " +
-  "whether it's a general pattern or something specific to ADHD/autistic thinking. Never dress up " +
-  "general-population psychology as personalised insight.\n\n" +
-
-  "HARD BOUNDARY — this one matters more than anything else here. Never hand down a directive verdict about " +
-  "his relationships or mental health ('you should take a break', 'you should leave', 'you should confront " +
-  "them'). Reflect, ask questions, help him think — don't decide for him. Having more context about him does " +
-  "NOT earn the right to be more directive here; if anything it should make you more careful. It's fine, and " +
-  "often right, to say: 'This isn't something I should be deciding for you,' or 'That's worth talking through " +
-  "with her directly, not settling here.'\n\n" +
-
-  "RECOGNISING DYSREGULATION. These are different states and treating one like another makes it worse.\n" +
-  "- Meltdown: outward, involuntary — the nervous system flooding as if in real danger. Not a tantrum. Reduce " +
-  "stimulation, don't interrogate, presence beats persuasion.\n" +
-  "- Shutdown: inward, involuntary — capacity has run out, like a computer trying to boot without enough power. " +
-  "The instinct to close the distance and ask more questions lands as MORE demand. Reduce demands instead. " +
-  "Let silence be. A shutdown is not a verdict on the relationship.\n" +
-  "- Capacity is what's available THAT DAY, not in theory. Something fine on a good day can tip him over on a " +
-  "depleted one.\n" +
-  "- RSD (rejection sensitive dysphoria) is a widely described ADHD pattern, not a formal diagnosis: sudden " +
-  "shame spirals, 'I'm too much', defensive anger, over-apologising — often from something never meant as " +
-  "rejection. Naming it helps ('this might be RSD'). 'You're overreacting' does not.\n" +
-  "- Emotional dysregulation is core to ADHD, not a side effect. Many adults find it more impairing than the " +
-  "attention symptoms.\n" +
-  "- Nobody's triggers or comforts are universal — including everything above. Learn what actually helps HIM, " +
-  "ideally during calm moments, and remember it.\n\n" +
-
-  "LIMITS. You are not a therapist or a crisis service, and you never diagnose anyone — say so plainly if " +
-  "asked. This knowledge makes you better at recognising what's happening, not more willing to hand down " +
-  "verdicts. If something sounds like genuine danger to him or someone else, say so directly and point him " +
-  "toward real human support rather than trying to be the whole answer.\n\n" +
-
-  "ATTACHMENTS. He can send you photos and documents. When he does, actually read what's there and respond to " +
-  "the real content, not generic advice. If it's something dense — a bill, a form, a letter, an appointment " +
-  "summary — break it down: what actually matters, and what the next action is. Then offer to capture that " +
-  "next action for him.";
+  "Keep replies short and concrete. If you're unsure what he means, capture it anyway and ask one short question.";
 
 function statusValue(s) {
   s = String(s || "").toLowerCase();
@@ -894,9 +850,6 @@ function buildAssistantContext() {
 let asOpen = false, asLoading = false;
 let asMessages = [];
 let asApiMessages = [];
-// Pending attachment: { kind:"image"|"pdf", base64, mediaType, name, previewSrc }
-let asAttachment = null;
-const AS_MAX_FILE_BYTES = 4 * 1024 * 1024;
 
 function renderAssistant() {
   const root = document.getElementById("asRoot");
@@ -909,20 +862,9 @@ function renderAssistant() {
         (asMessages.length ? asMessages.map(renderAssistantMessage).join("")
           : '<div class="as-row as-assistant"><div class="as-text">Hey Dusty. Just tell me anything you need to remember — a thought, a promise, a date — and I\'ll put it where it belongs. Talking is fine; capturing beats organizing.</div></div>') +
       "</div>" +
-      (asAttachment
-        ? '<div class="as-attach-chip">' +
-            (asAttachment.kind === "image"
-              ? '<img src="' + asAttachment.previewSrc + '" alt="" />'
-              : '<div class="as-doc">📄</div>') +
-            "<span>" + escapeHtml(asAttachment.name) + "</span>" +
-            '<button type="button" data-action="as-attach-clear" title="Remove">✕</button>' +
-          "</div>"
-        : "") +
       '<form class="as-input-row" id="asForm">' +
-        '<button type="button" class="as-attach" data-action="as-attach"' + (ready ? "" : " disabled") + ' title="Attach a photo or document">📎</button>' +
         '<input type="text" id="asInput" placeholder="' + (ready ? "Tell me anything…" : "Set a Worker Proxy URL in Settings first") + '" ' + (ready ? "" : "disabled") + " />" +
         '<button type="submit"' + (ready ? "" : " disabled") + ">Send</button>" +
-        '<input type="file" id="asFile" accept="image/*,application/pdf" style="display:none" />' +
       "</form>" +
     "</div>";
   const form = document.getElementById("asForm");
@@ -930,50 +872,14 @@ function renderAssistant() {
     e.preventDefault();
     const input = document.getElementById("asInput");
     const text = input.value.trim();
-    if (text || asAttachment) { input.value = ""; assistantSend(text); }
-  });
-  const fileEl = document.getElementById("asFile");
-  if (fileEl) fileEl.addEventListener("change", () => {
-    const file = fileEl.files && fileEl.files[0];
-    fileEl.value = "";
-    if (!file) return;
-    if (file.size > AS_MAX_FILE_BYTES) {
-      toast("That file's a bit big for me — anything under 4MB works.");
-      return;
-    }
-    const isPdf = file.type === "application/pdf";
-    const isImage = (file.type || "").indexOf("image/") === 0;
-    if (!isPdf && !isImage) {
-      toast("I can read photos and PDFs. For anything else, paste the text in.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      asAttachment = {
-        kind: isPdf ? "pdf" : "image",
-        base64: String(reader.result).split(",")[1],
-        mediaType: isPdf ? "application/pdf" : (file.type || "image/jpeg"),
-        name: file.name,
-        previewSrc: isPdf ? null : String(reader.result),
-      };
-      renderAssistant();
-    };
-    reader.readAsDataURL(file);
+    if (text) { input.value = ""; assistantSend(text); }
   });
   const body = document.getElementById("asBody");
   if (body) body.scrollTop = body.scrollHeight;
 }
 
 function renderAssistantMessage(m) {
-  if (m.role === "user") {
-    var att = "";
-    if (m.attachment) {
-      att = m.attachment.kind === "image" && m.attachment.previewSrc
-        ? '<img class="as-thumb" src="' + m.attachment.previewSrc + '" alt="" />'
-        : '<span class="as-filename">📄 ' + escapeHtml(m.attachment.name) + "</span>";
-    }
-    return '<div class="as-row as-user"><div class="as-text">' + att + escapeHtml(m.text) + "</div></div>";
-  }
+  if (m.role === "user") return '<div class="as-row as-user"><div class="as-text">' + escapeHtml(m.text) + "</div></div>";
   return '<div class="as-row as-assistant"><div class="as-text">' + escapeHtml(m.text) +
     ((m.actionNotes || []).map((n) => '<div class="as-action-note">✓ ' + escapeHtml(n) + "</div>").join("")) + "</div></div>";
 }
@@ -983,21 +889,8 @@ async function assistantSend(text) {
   const proxyUrl = STATE.settings.assistantProxyUrl;
   if (!proxyUrl) { toast("Set a Worker Proxy URL in Settings first."); return; }
 
-  // Take the pending attachment (if any) and clear it, so a slow reply
-  // can't accidentally re-send the same file twice.
-  const att = asAttachment;
-  asAttachment = null;
-  if (!text && att) text = att.kind === "pdf" ? "Can you take a look at this document?" : "Can you take a look at this?";
-
-  asMessages.push({ role: "user", text, attachment: att });
-  if (att) {
-    const block = att.kind === "pdf"
-      ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: att.base64 } }
-      : { type: "image", source: { type: "base64", media_type: att.mediaType, data: att.base64 } };
-    asApiMessages.push({ role: "user", content: [block, { type: "text", text }] });
-  } else {
-    asApiMessages.push({ role: "user", content: text });
-  }
+  asMessages.push({ role: "user", text });
+  asApiMessages.push({ role: "user", content: text });
   asLoading = true;
   asMessages.push({ role: "assistant", text: "thinking…", isLoading: true });
   renderAssistant();
@@ -1090,6 +983,8 @@ function openSettingsModal() {
     '<form data-form="settings-form">' +
       '<div class="field"><label>Appearance</label><select name="theme">' + opt("light", "Light") + opt("dark", "Dark") + opt("bland", "Bland") + opt("vibrant", "Vibrant") + opt("custom", "Custom color") + '</select><div class="hint" style="margin-top:4px">Or tap 🎨 in the header for swatches.</div></div>' +
       '<div class="field"><label>Custom accent color</label><input type="color" name="accentColor" value="' + escapeHtml(STATE.settings.accentColor || "#7c5cd6") + '" style="height:40px;padding:4px" /></div>' +
+      '<div class="field"><label class="row" style="font-size:13px"><input type="checkbox" name="queueRotate" ' + (STATE.settings.queueRotate !== false ? "checked" : "") + ' style="width:16px;height:16px;margin-right:6px" /> Auto-rotate long lists (show a few at a time)</label></div>' +
+      '<div class="field"><label>Rotate every (seconds)</label><input type="number" name="queueSeconds" min="2" max="30" value="' + (STATE.settings.queueSeconds || 4) + '" /></div>' +
       '<div class="field"><label>What to call your wife in the app</label><input type="text" name="wifeName" value="' + escapeHtml(STATE.settings.wifeName || "My Wife") + '" /></div>' +
       '<div class="hr"></div>' +
       "<p class=\"hint\">Optional: connect Google for calendar reminders on dated items and cross-device sync via your own private Drive folder.</p>" +
@@ -1103,9 +998,9 @@ function openSettingsModal() {
       "</div>" +
       (connected ? '<div class="hr"></div><div class="row between"><div><strong style="font-size:13px">Cross-device sync</strong><div class="hint">Saves to your own Google Drive; loads on any device signed in with the same account.</div></div><button type="button" class="btn-sm" data-action="sync-drive-now">Sync now</button></div>' : "") +
       '<div class="hr"></div>' +
-      "<p class=\"hint\">" + escapeHtml(APP.assistantName) + " talks to Claude through your own Cloudflare Worker, so no API key lives in this file. One Worker serves every app on this origin.</p>" +
+      "<p class=\"hint\">Anchor talks to Claude through your own Cloudflare Worker, so no API key lives in this file. One Worker serves every app on this origin.</p>" +
       '<div class="field"><label>Worker Proxy URL</label><input type="text" name="assistantProxyUrl" value="' + escapeHtml(STATE.settings.assistantProxyUrl || "") + '" placeholder="https://your-worker.your-subdomain.workers.dev" /></div>' +
-      '<label class="row" style="margin-bottom:10px;font-size:13px"><input type="checkbox" name="assistantCheckins" ' + (STATE.settings.assistantCheckins ? "checked" : "") + ' style="width:16px;height:16px;margin-right:6px" /> Let ' + escapeHtml(APP.assistantName) + ' check in on its own (off by default)</label>' +
+      '<label class="row" style="margin-bottom:10px;font-size:13px"><input type="checkbox" name="assistantCheckins" ' + (STATE.settings.assistantCheckins ? "checked" : "") + ' style="width:16px;height:16px;margin-right:6px" /> Let Anchor check in on its own (off by default)</label>' +
       '<button type="submit" class="btn-sm">Save assistant settings</button>' +
       '<div class="hr"></div>' +
       '<div class="row between"><div><strong style="font-size:13px">Notifications</strong><div class="hint">Only while a tab with this app is open.</div></div>' +
@@ -1126,6 +1021,8 @@ function openSettingsModal() {
     const data = Object.fromEntries(new FormData(e.target).entries());
     STATE.settings.theme = data.theme || "light";
     if (data.accentColor) STATE.settings.accentColor = data.accentColor;
+    STATE.settings.queueRotate = !!data.queueRotate;
+    STATE.settings.queueSeconds = Math.max(2, Math.min(30, parseInt(data.queueSeconds || 4, 10) || 4));
     STATE.settings.wifeName = (data.wifeName || "My Wife").trim() || "My Wife";
     STATE.settings.googleClientId = (data.googleClientId || "").trim();
     STATE.settings.defaultCalendarId = (data.defaultCalendarId || "primary").trim();
@@ -1177,11 +1074,61 @@ const TABS = [
   { id: "commitments", label: "Commitments" },
   { id: "dates", label: "Dates" },
   { id: "lists", label: "Lists" },
+  { id: "all", label: "All" },
 ];
+
+/* ---- Auto-rotating queue: show a few cards at a time and gently scroll, so a
+   tab with 100 things isn't a wall. Pauseable, manual step, respects
+   reduce-motion, and the full list is always on the All tab. ---- */
+let _queue = null, _queueTimer = null, _queuePaused = false;
+function reduceMotion() { return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); }
+function queueWindowHtml() {
+  if (!_queue) return "";
+  const n = _queue.list.length, count = Math.min(_queue.window, n), out = [];
+  for (let i = 0; i < count; i++) { const idx = (_queue.offset + i) % n; out.push(_queue.render(_queue.list[idx], idx)); }
+  return out.join("");
+}
+function queueInfoText() {
+  if (!_queue) return "";
+  const n = _queue.list.length, s = (_queue.offset % n) + 1, e = ((_queue.offset + Math.min(_queue.window, n) - 1) % n) + 1;
+  return s + (e === s ? "" : "–" + e) + " of " + n;
+}
+function renderQueue(list, render, opts) {
+  opts = opts || {};
+  const win = opts.window || STATE.settings.queueWindow || 3;
+  if (!list.length) { _queue = null; return opts.empty || ""; }
+  if (list.length <= win) { _queue = null; return list.map(render).join(""); }
+  _queue = { list: list, render: render, offset: 0, window: win };
+  _queuePaused = (STATE.settings.queueRotate === false) || reduceMotion();
+  return '<div class="queue"><div class="queue-box" id="queueBox">' + queueWindowHtml() + "</div>" +
+    '<div class="queue-ctrl">' +
+      '<button class="qbtn" data-action="q-prev" title="Previous">‹</button>' +
+      '<button class="qbtn" data-action="q-pause" id="qPause" title="Pause / play">' + (_queuePaused ? "▶" : "⏸") + "</button>" +
+      '<button class="qbtn" data-action="q-next" title="Next">›</button>' +
+      '<span class="hint" id="queueInfo">' + queueInfoText() + "</span>" +
+      '<button class="btn-sm" data-action="tab" data-id="all" style="margin-left:auto">See all →</button>' +
+    "</div></div>";
+}
+function refreshQueueBox() {
+  const box = document.getElementById("queueBox"); if (box) box.innerHTML = queueWindowHtml();
+  const info = document.getElementById("queueInfo"); if (info) info.textContent = queueInfoText();
+  const p = document.getElementById("qPause"); if (p) p.textContent = _queuePaused ? "▶" : "⏸";
+}
+function queueAdvance(step) { if (!_queue) return; const n = _queue.list.length; _queue.offset = ((_queue.offset + step) % n + n) % n; refreshQueueBox(); }
+function stopQueueTimer() { if (_queueTimer) { clearInterval(_queueTimer); _queueTimer = null; } }
+function startQueueTimer() {
+  stopQueueTimer();
+  if (!_queue || _queuePaused) return;
+  const secs = Math.max(2, STATE.settings.queueSeconds || 4);
+  _queueTimer = setInterval(function () { queueAdvance(1); }, secs * 1000);
+}
+function toggleQueuePause() { _queuePaused = !_queuePaused; if (_queuePaused) stopQueueTimer(); else startQueueTimer(); refreshQueueBox(); }
+function queueStepManual(step) { _queuePaused = true; stopQueueTimer(); queueAdvance(step); }
 
 function render() {
   const app = document.getElementById("app");
   const wife = escapeHtml(STATE.settings.wifeName || "My Wife");
+  _queue = null;
   let body = "";
   if (currentTab === "today") body = renderToday(wife);
   else if (currentTab === "inbox") body = renderInbox();
@@ -1189,6 +1136,7 @@ function render() {
   else if (currentTab === "commitments") body = renderCommitments();
   else if (currentTab === "dates") body = renderDates();
   else if (currentTab === "lists") body = renderLists();
+  else if (currentTab === "all") body = renderAll(wife);
 
   app.innerHTML =
     '<div class="hdr"><canvas id="hdrCanvas"></canvas>' +
@@ -1202,6 +1150,7 @@ function render() {
     '<div class="footer-links"><a data-action="tab" data-id="private">Private log</a></div>';
 
   startHeaderAnim();
+  startQueueTimer();
 }
 
 function itemCard(inner, cls) { return '<div class="card' + (cls ? " " + cls : "") + '">' + inner + "</div>"; }
@@ -1221,7 +1170,7 @@ function renderToday(wife) {
   if (tells.length) { any = true; out += tells.slice(0, 3).map((i) => '<div style="padding:6px 0"><span class="dot"></span>' + escapeHtml(i.text) + ' <span class="faint">— tell ' + wife + "</span></div>").join(""); }
   const otherCommits = openCommits.filter((i) => !wifeOpen.includes(i));
   if (otherCommits.length) { any = true; out += otherCommits.map((i) => '<div style="padding:6px 0"><span class="dot"></span>' + escapeHtml(i.text) + (i.who ? ' <span class="faint">— ' + escapeHtml(i.who) + "</span>" : "") + "</div>").join(""); }
-  if (!any) out += '<div class="empty">Nothing needs you right now. When something lands in your head, tap <strong>Capture</strong> or just tell ' + escapeHtml(APP.assistantName) + '.</div>';
+  if (!any) out += '<div class="empty">Nothing needs you right now. When something lands in your head, tap <strong>Capture</strong> or just tell Anchor.</div>';
   out += "</div>";
 
   if (inbox.length) out += '<div class="section-title">Unsorted in your inbox (' + inbox.length + ')</div>' + itemCard('<span class="faint">' + inbox.length + " thing(s) waiting — no rush. Open the Inbox tab when you want to sort, or leave them.</span>");
@@ -1232,29 +1181,25 @@ function renderInbox() {
   const inbox = items("inbox").filter((i) => !i.done).sort((a, b) => b.createdAt - a.createdAt);
   const done = items("inbox").filter((i) => i.done);
   let out = '<div class="section-title">Inbox — dump anything, sort never</div>';
-  out += inbox.length ? inbox.map((i) =>
+  out += renderQueue(inbox, (i) =>
       itemCard('<div class="row between" style="gap:10px"><div class="maintext">' + escapeHtml(i.text) + "</div>" +
         '<div class="row" style="gap:6px;flex:0 0 auto"><button class="btn-sm" data-action="sort-open" data-id="' + i.id + '">Sort →</button>' +
-        '<button class="btn-sm" data-action="clear-inbox" data-id="' + i.id + '" title="Clear from inbox">✓</button></div></div>')).join("")
-    : '<div class="empty">Empty — that\'s fine. Tap <strong>Capture</strong> or tell ' + escapeHtml(APP.assistantName) + ' anything you don\'t want to lose.</div>';
+        '<button class="btn-sm" data-action="clear-inbox" data-id="' + i.id + '" title="Clear from inbox">✓</button></div></div>'),
+    { empty: '<div class="empty">Empty — that\'s fine. Tap <strong>Capture</strong> or tell Anchor anything you don\'t want to lose.</div>' });
   if (done.length) out += '<div class="section-title">Cleared (' + done.length + ")</div>" + done.slice(-5).map((i) => itemCard('<span class="faint">' + escapeHtml(i.text) + "</span>")).join("");
   return out;
 }
 
+const PERSON_LABEL = { promise: "Promise", told: "She told me", situation: "Ongoing", pref: "Matters to her" };
 function renderPeople(wife) {
   const notes = items("person");
-  const secs = [ { k: "promise", t: "Promises I've made" }, { k: "told", t: "Things she's told me" }, { k: "situation", t: "Ongoing situations" }, { k: "pref", t: "Things that matter to her" } ];
   let out = '<div class="row between"><div class="section-title" style="margin-top:4px">' + wife + " · the page that matters most</div>" +
     '<button class="btn-sm" data-action="add-person">+ Note</button></div>';
-  let any = false;
-  out += secs.map((s) => {
-    const rows = notes.filter((n) => n.section === s.k);
-    if (!rows.length) return "";
-    any = true;
-    return '<div class="section-title">' + s.t + "</div>" + rows.map((n) => itemCard('<div class="row between"><div class="maintext">' + escapeHtml(n.text) + "</div>" +
-      (s.k === "promise" ? '<button class="btn-sm" data-action="promise-done" data-id="' + n.id + '">✓ Done</button>' : "") + "</div>")).join("");
-  }).join("");
-  if (!any) out += '<div class="empty">No notes yet. Add anything she\'s told you, asked you to remember, or that matters to her — or just tell ' + escapeHtml(APP.assistantName) + ' "note for my wife: …".</div>';
+  out += renderQueue(notes, (n) => itemCard('<div class="row between"><div>' +
+      '<div class="hint">' + (PERSON_LABEL[n.section] || "Note") + "</div>" +
+      '<div class="maintext">' + escapeHtml(n.text) + "</div></div>" +
+      (n.section === "promise" ? '<button class="btn-sm" data-action="promise-done" data-id="' + n.id + '">✓ Done</button>' : "") + "</div>"),
+    { empty: '<div class="empty">No notes yet. Add anything she\'s told you, asked you to remember, or that matters to her — or just tell Anchor "note for my wife: …".</div>' });
   return out;
 }
 
@@ -1267,9 +1212,9 @@ function renderCommitments() {
   };
   let out = '<div class="row between"><div class="section-title" style="margin-top:4px">Commitments — things I said I\'d do</div>' +
     '<button class="btn-sm" data-action="add-commitment">+ Add</button></div>';
-  out += open.length ? open.map((i) => itemCard('<div class="row between"><div class="maintext">' + escapeHtml(i.text) +
-      (i.who ? ' <span class="faint">— ' + escapeHtml(i.who) + "</span>" : "") + "</div>" + pill(i) + "</div>")).join("")
-    : '<div class="empty">Nothing open. Tap <strong>Add</strong> for any "I\'ll do that" with no set date — those are the ones that vanish.</div>';
+  out += renderQueue(open, (i) => itemCard('<div class="row between"><div class="maintext">' + escapeHtml(i.text) +
+      (i.who ? ' <span class="faint">— ' + escapeHtml(i.who) + "</span>" : "") + "</div>" + pill(i) + "</div>"),
+    { empty: '<div class="empty">Nothing open. Tap <strong>Add</strong> for any "I\'ll do that" with no set date — those are the ones that vanish.</div>' });
   if (done.length) out += '<div class="section-title">Done (' + done.length + ")</div>" + done.slice(-6).map((i) => itemCard('<div class="row between"><span class="faint">' + escapeHtml(i.text) + "</span>" + pill(i) + "</div>")).join("");
   return out;
 }
@@ -1279,30 +1224,52 @@ function renderDates() {
   const past = items("date").filter((i) => daysUntil(i.date) < 0).sort((a, b) => b.date.localeCompare(a.date));
   let out = '<div class="row between"><div class="section-title" style="margin-top:4px">Dates — anything time-bound</div>' +
     '<button class="btn-sm" data-action="add-date">+ Add</button></div>';
-  out += upcoming.length ? upcoming.map((i) => {
+  out += renderQueue(upcoming, (i) => {
     const d = daysUntil(i.date);
     const when = d === 0 ? "Today" : d === 1 ? "Tomorrow" : fmtDate(i.date);
     return itemCard('<div class="maintext">' + escapeHtml(i.text) + "</div>" +
       '<div class="hint" style="margin-top:4px">' + when + (i.leaveBy ? ' · ' + escapeHtml(i.leaveBy) : "") + (i.eventId ? " · on your calendar" : "") + "</div>");
-  }).join("") : '<div class="empty">No upcoming dates. Tap <strong>Add</strong> — if Google is connected, it also drops a calendar reminder.</div>';
+  }, { empty: '<div class="empty">No upcoming dates. Tap <strong>Add</strong> — if Google is connected, it also drops a calendar reminder.</div>' });
   if (past.length) out += '<div class="section-title">Past</div>' + past.slice(0, 5).map((i) => itemCard('<span class="faint">' + escapeHtml(i.text) + " · " + fmtDate(i.date) + "</span>")).join("");
   return out;
 }
 
 function renderLists() {
   const ctx = items("context");
-  const listNames = [];
-  ctx.forEach((i) => { if (!listNames.includes(i.list)) listNames.push(i.list); });
   let out = '<div class="row between"><div class="section-title" style="margin-top:4px">Context lists — right thing, right moment</div>' +
     '<button class="btn-sm" data-action="add-context">+ Add</button></div>';
-  if (!listNames.length) return out + '<div class="empty">No lists yet. Group things by situation — "tell my wife", "near the store", "ask the doctor" — so the right thing shows up at the right moment.</div>';
-  out += listNames.map((name) => '<div class="section-title">' + escapeHtml(name) + "</div>" +
-    ctx.filter((i) => i.list === name).map((i) => itemCard('<div class="row between"><div class="maintext">' + escapeHtml(i.text) + "</div>" +
-      '<button class="btn-sm" data-action="clear-context" data-id="' + i.id + '">✓</button></div>')).join("")).join("");
+  out += renderQueue(ctx, (i) => itemCard('<div class="row between"><div>' +
+      '<div class="hint">' + escapeHtml(i.list) + "</div>" +
+      '<div class="maintext">' + escapeHtml(i.text) + "</div></div>" +
+      '<button class="btn-sm" data-action="clear-context" data-id="' + i.id + '">✓</button></div>'),
+    { empty: '<div class="empty">No lists yet. Group things by situation — "tell my wife", "near the store", "ask the doctor" — so the right thing shows up at the right moment.</div>' });
+  return out;
+}
+
+/* The "see everything" view — no rotation, full scroll. Repair log stays out
+   (it's private and has its own view). */
+function renderAll(wife) {
+  const sec = (t) => '<div class="section-title">' + t + "</div>";
+  const inbox = items("inbox").filter((i) => !i.done);
+  const commits = items("commitment");
+  const openCount = commits.filter((c) => c.status !== "done").length;
+  const dates = items("date").slice().sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  const upcoming = dates.filter((d) => daysUntil(d.date) >= 0).length;
+  const notes = items("person");
+  const ctx = items("context");
+  let out = '<div class="section-title" style="margin-top:4px">Everything, all at once</div>';
+  out += itemCard('<span class="faint">' + inbox.length + " in inbox · " + openCount + " open commitments · " + upcoming + " upcoming dates · " + notes.length + " notes · " + ctx.length + " list items</span>");
+  if (inbox.length) out += sec("Inbox") + inbox.map((i) => itemCard('<div class="maintext">' + escapeHtml(i.text) + "</div>")).join("");
+  if (commits.length) out += sec("Commitments") + commits.map((i) => itemCard('<div class="row between"><div class="maintext">' + escapeHtml(i.text) + (i.who ? ' <span class="faint">— ' + escapeHtml(i.who) + "</span>" : "") + '</div><span class="faint">' + escapeHtml(i.status || "not started") + "</span></div>")).join("");
+  if (dates.length) out += sec("Dates") + dates.map((i) => itemCard('<div class="maintext">' + escapeHtml(i.text) + '</div><div class="hint" style="margin-top:4px">' + fmtDate(i.date) + (i.leaveBy ? " · " + escapeHtml(i.leaveBy) : "") + "</div>")).join("");
+  if (notes.length) out += sec(wife) + notes.map((i) => itemCard('<div class="hint">' + (PERSON_LABEL[i.section] || "Note") + '</div><div class="maintext">' + escapeHtml(i.text) + "</div>")).join("");
+  if (ctx.length) out += sec("Context lists") + ctx.map((i) => itemCard('<div class="hint">' + escapeHtml(i.list) + '</div><div class="maintext">' + escapeHtml(i.text) + "</div>")).join("");
+  if (!inbox.length && !commits.length && !dates.length && !notes.length && !ctx.length) out += '<div class="empty">Nothing captured yet. Tap <strong>Capture</strong> to start.</div>';
   return out;
 }
 
 function renderPrivate() {
+  _queue = null; stopQueueTimer();
   const app = document.getElementById("app");
   const reps = items("repair");
   app.innerHTML =
@@ -1310,7 +1277,7 @@ function renderPrivate() {
     '<p class="tagline">Only for spotting patterns in what slips — never a guilt list. Nothing here is ever thrown in your face.</p>' +
     '<div class="row" style="margin-bottom:14px"><button class="btn-primary" data-action="add-repair">+ Log something that slipped</button></div>' +
     (reps.length ? reps.slice().reverse().map((i) => itemCard('<div class="maintext">' + escapeHtml(i.text) + '</div><div class="hint" style="margin-top:4px">' + fmtDate((new Date(i.createdAt)).toISOString().slice(0, 10)) + "</div>")).join("")
-      : '<div class="empty">Nothing logged. When something slips and it stings, note it here — then every few weeks ask ' + escapeHtml(APP.assistantName) + ' "what patterns show up?" That\'s where the real fixes come from.</div>');
+      : '<div class="empty">Nothing logged. When something slips and it stings, note it here — then every few weeks ask Anchor "what patterns show up?" That\'s where the real fixes come from.</div>');
 }
 
 /* ---- add modals ---- */
@@ -1530,6 +1497,9 @@ document.body.addEventListener("click", (e) => {
   else if (action === "add-person") openAddPersonModal();
   else if (action === "add-context") openAddContextModal();
   else if (action === "add-repair") openAddRepairModal();
+  else if (action === "q-prev") queueStepManual(-1);
+  else if (action === "q-next") queueStepManual(1);
+  else if (action === "q-pause") toggleQueuePause();
   else if (action === "sort-open") openSortModal(id);
   else if (action === "sort-save") sortSave(id);
   else if (action === "clear-inbox") clearInbox(id);
@@ -1546,8 +1516,6 @@ document.body.addEventListener("click", (e) => {
   else if (action === "enable-notifications") enableNotifications();
   else if (action === "export-backup") exportBackup();
   else if (action === "as-toggle") { asOpen = !asOpen; renderAssistant(); }
-  else if (action === "as-attach") { const f = document.getElementById("asFile"); if (f) f.click(); }
-  else if (action === "as-attach-clear") { asAttachment = null; renderAssistant(); }
   else if (action === "as-close") { asOpen = false; renderAssistant(); }
 });
 
