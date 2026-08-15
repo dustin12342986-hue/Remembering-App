@@ -112,6 +112,7 @@ lastAssistantCheckinAt, notificationsEnabled (bool),
 theme ("light"|"dark"|"bland"|"vibrant"|"custom"),
 accentColor (hex, used when theme==="custom"),
 queueRotate (bool), queueSeconds (int), queueWindow (int),
+streamDefault (bool — open to the Brain Stream),
 wifeName (display label only)
 ```
 
@@ -231,6 +232,15 @@ Palette source of truth (the logo colors): `#2ec4b6, #3a82d0, #7c5cd6, #e056a0,
   attribute and attach their own submit handler right after `openModal`.
 - The **Sort** flow (`openSortModal`/`sortSave`) converts an inbox item into
   another kind *in place* (keeps `id` and `createdAt`), then jumps to that tab.
+- **Brain Stream** (`renderStream` + `startStream`/`stopStream`): the default
+  landing tab. An ambient view where the day's actionable items (`streamPool()`)
+  drift upward as tappable thought-bubbles (DOM elements animated by the `riseUp`
+  CSS keyframe; spawned on a timer, capped at ~5 on screen, self-removed on
+  `animationend`). Tapping a bubble → `openBubbleModal` (quick actions: advance a
+  commitment, sort an inbox item, or jump to its tab). Falls back to a calm
+  static list under reduce-motion, the Bland theme, or when paused
+  (`_streamPaused`). Toggle default landing with `settings.streamDefault`. Keep
+  `stopStream()` cleanup in `render()`/`renderPrivate()`.
 - **Auto-rotating queue** (`renderQueue`): list tabs (inbox, people,
   commitments, dates, lists) show only `queueWindow` (3) cards at a time and
   gently scroll through the rest on a timer, so a big list isn't a wall. It's

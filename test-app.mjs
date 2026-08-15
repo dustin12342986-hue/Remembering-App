@@ -174,6 +174,16 @@ if (read("typeof renderQueue") === "function") {
   read('currentTab = "today"; render();');   // reset for later tests
 }
 
+// --- 4e. Brain Stream is the default ambient view ------------------------
+if (read("typeof renderStream") === "function") {
+  check("Stream is the first/default tab", read('TABS[0].id') === "stream");
+  read('currentTab = "stream"; render();');
+  check("stream view renders", (d.getElementById("app").innerHTML || "").toLowerCase().includes("brain stream"));
+  const poolLen = read("streamPool().length", 0);
+  check("stream pool gathers items", poolLen > 0, "pool=" + poolLen);
+  read('currentTab = "today"; render();');   // reset for later tests
+}
+
 // --- 5. Drive sync safety (stub Drive, never touch the network) ----------
 if (read("typeof DriveSync") === "object" && read("typeof syncFromDriveIfNewer") === "function") {
   w.eval(`
