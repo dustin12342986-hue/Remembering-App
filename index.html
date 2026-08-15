@@ -194,20 +194,21 @@
   @keyframes brainPulse { 0%, 100% { transform: translateX(-50%) scale(1); } 50% { transform: translateX(-50%) scale(1.05); } }
   .brain.fire { animation: brainPulse 3.8s ease-in-out infinite, brainFire 0.8s ease-out; }
   @keyframes brainFire { 0% { filter: drop-shadow(0 0 8px var(--accent-soft)); } 40% { filter: drop-shadow(0 0 30px var(--accent)); } 100% { filter: drop-shadow(0 0 18px var(--accent-soft)); } }
-  .thought { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 9px;
+  .thought { position: absolute; left: 50%; bottom: 88px; display: inline-flex; align-items: center; gap: 9px;
     max-width: 74%; padding: 13px 17px; border-radius: 24px; border: 1px solid var(--border); color: var(--text);
     font-family: inherit; font-size: 16px; line-height: 1.35; text-align: left; cursor: pointer; box-shadow: var(--shadow);
-    animation: drift 10s ease-in-out forwards; }
+    --dx: 0px; --dy: -260px; transform-origin: 50% 100%;
+    animation: pop 10s linear forwards; }
   .thought:hover, .thought:active { animation-play-state: paused; border-color: var(--accent); }
   .thought .b-emoji { font-size: 18px; flex: 0 0 auto; }
-  @keyframes drift {
-    0%   { opacity: 0; transform: translate(-50%, 12px) scale(0.7); }
-    12%  { opacity: 1; transform: translate(-50%, -12px) scale(1); }
-    30%  { transform: translate(calc(-50% + 46px), -74px); }
-    48%  { transform: translate(calc(-50% - 36px), -120px); }
-    66%  { transform: translate(calc(-50% + 30px), -172px); }
-    84%  { opacity: 1; transform: translate(calc(-50% - 22px), -220px); }
-    100% { opacity: 0; transform: translate(-50%, -268px) scale(0.97); }
+  /* Pops open from the shockwave, then rises steadily in one direction and fades */
+  @keyframes pop {
+    0%   { opacity: 0; transform: translate(-50%, 0) scale(0.12); }
+    5%   { opacity: 1; }
+    8%   { transform: translate(calc(-50% + (var(--dx) * 0.05)), calc(var(--dy) * 0.05)) scale(1.15); }
+    13%  { transform: translate(calc(-50% + (var(--dx) * 0.09)), calc(var(--dy) * 0.09)) scale(1); }
+    85%  { opacity: 1; }
+    100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), var(--dy)) scale(1); }
   }
   .stream-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; }
   .brain { z-index: 1; }
@@ -1232,7 +1233,7 @@ function startStream() {
   const canvas = document.getElementById("streamCanvas");
   _streamRun = true; _streamIdx = 0;
 
-  const CHAOS = 2200, TAME = 1700, CALM = 8300;
+  const CHAOS = 3200, CALM = 10500;
 
   function spawnThought() {
     const st = document.getElementById("streamStage"); if (!st) return;
@@ -1244,7 +1245,10 @@ function startStream() {
     el.setAttribute("data-action", "bubble"); el.setAttribute("data-id", it.id);
     el.style.background = hexToRgba(color, 0.16);
     el.style.borderColor = hexToRgba(color, 0.55);
-    el.style.animationDuration = (CALM / 1000) + "s";
+    const dirs = [[0, -260], [-150, -210], [150, -210], [-250, -70], [250, -70], [0, -260]];
+    const dir = dirs[(Math.random() * dirs.length) | 0];
+    el.style.setProperty("--dx", dir[0] + "px");
+    el.style.setProperty("--dy", dir[1] + "px");
     el.innerHTML = '<span class="b-emoji">' + c.emoji + '</span><span class="b-text">' + escapeHtml(it.text) + "</span>";
     st.appendChild(el);
   }
@@ -1267,30 +1271,34 @@ function startStream() {
 
   function setPhase(p, ts) {
     phase = p; phaseStart = ts;
-    if (p === "tame") { rings.push({ r: 18, a: 0.55 }); if (brain) { brain.classList.remove("buzz"); brain.classList.remove("fire"); void brain.offsetWidth; brain.classList.add("fire"); } }
-    else if (p === "calm") { spawnThought(); }
-    else if (p === "chaos") { clearThought(); if (brain) brain.classList.add("buzz"); }
+    if (p === "calm") {
+      rings.push({ r: 8, a: 0.6 });                 // the shockwave the thought pops from
+      if (brain) { brain.classList.remove("buzz"); brain.classList.remove("fire"); void brain.offsetWidth; brain.classList.add("fire"); }
+      spawnThought();                               // pops open right as the ring bursts
+    } else if (p === "chaos") {
+      clearThought();
+      if (brain) brain.classList.add("buzz");
+    }
   }
 
   function loop(ts) {
     if (!_streamRun) return;
     if (!started) { started = true; setPhase("chaos", ts); }
     const el = ts - phaseStart;
-    if (phase === "chaos" && el >= CHAOS) setPhase("tame", ts);
-    else if (phase === "tame" && el >= TAME) setPhase("calm", ts);
+    if (phase === "chaos" && el >= CHAOS) setPhase("calm", ts);
     else if (phase === "calm" && el >= CALM) setPhase("chaos", ts);
 
-    const target = phase === "chaos" ? 0 : phase === "tame" ? Math.min(1, el / TAME) : 1;
-    calm += (target - calm) * 0.07;
+    const target = phase === "chaos" ? 0 : 1;
+    calm += (target - calm) * (phase === "calm" ? 0.045 : 0.12);   // settle slowly into calm
 
     const bx = W / 2, by = H - 64;
     ctx.clearRect(0, 0, W, H);
     for (const p of P) {
-      const speed = 1.9 * (1 - calm) + 0.22 * calm;
-      const jitter = (1 - calm) * 0.85;
+      const speed = 1.5 * (1 - calm) + 0.16 * calm;
+      const jitter = (1 - calm) * 0.7;
       p.a += (Math.random() - 0.5) * jitter;
       const dx = bx - p.x, dy = by - p.y, d = Math.hypot(dx, dy) || 1;
-      const pull = calm * 0.18;
+      const pull = calm * 0.16;
       p.x += Math.cos(p.a) * speed + (dx / d) * pull * speed;
       p.y += Math.sin(p.a) * speed + (dy / d) * pull * speed;
       if (p.x < 0 || p.x > W) { p.a = Math.PI - p.a; p.x = Math.max(0, Math.min(W, p.x)); }
