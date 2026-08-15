@@ -164,6 +164,25 @@ fed back → up to `MAX_ROUNDS` (4) → final text shown.
 Current tools: `add_item`, `add_capture`, `update_item`, `add_commitment`,
 `set_status`, `add_date`, `add_person_note`, `add_context`, `log_repair`.
 
+**The assistant is Blue Bonnet** — the same identity across Dusty's apps
+(Adulting, Campus, Screening Room, standalone Blue Bonnet). Beyond this app's
+tone/tool rules its system prompt carries: the core communication principles
+(break things down, explain differently if it isn't landing, name what's general
+vs. ADHD/autism-adapted), a **hard boundary against directive relationship or
+mental-health verdicts**, and grounded knowledge on meltdown vs. shutdown vs.
+RSD. That boundary exists because directive relationship advice from a general
+assistant caused real harm — do not soften or remove it.
+
+**Attachments.** Blue Bonnet accepts photos and PDFs (📎 in the chat input, 4MB
+cap). Images send as `image` content blocks, PDFs as `document` blocks; anything
+else is refused with a friendly toast. `asAttachment` holds the pending file and
+is cleared at send time so a slow reply can't re-send it.
+
+**Renaming the assistant:** change `APP.assistantName` only. All UI copy
+interpolates it — never hardcode the name again. A test asserts no stray literal
+name and that no template text (`escapeHtml(APP.assistantName)`) leaks into the
+rendered UI, which is a real bug that happened once.
+
 **To add a new tool** (worked example — a "grocery" idea):
 
 1. Add to `ASSISTANT_TOOLS`:
@@ -284,7 +303,7 @@ node test-app.mjs index.html
 ```
 
 The harness loads the real `index.html` in jsdom, clicks real UI, and calls
-handlers directly. It currently asserts 22 checks, including: render, add via UI,
+handlers directly. It currently asserts 45 checks, including: render, add via UI,
 localStorage persistence, settings save + chat unlock, assistant add/edit,
 **no delete tool**, commitment/status/person/date tools, the **inbox→sort**
 conversion, the **empty-never-overwrites-remote** safety rail, and
@@ -313,6 +332,8 @@ check still passes.)
    Worker.
 9. After any change, run `test-app.mjs` and keep it green; add tests for new
    behavior.
+10. **Keep Blue Bonnet's hard boundary** (no directive relationship or
+    mental-health verdicts) in `ASSISTANT_SYSTEM`. A test enforces it.
 
 ---
 

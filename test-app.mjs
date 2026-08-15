@@ -204,6 +204,62 @@ if (read("typeof defaultState") === "function") {
   check("proactive check-ins default OFF", read("defaultState().settings.assistantCheckins") === false);
 }
 
+// --- 7. Attachments (photos & documents) ----------------------------------
+check("attachment state exists", read("typeof asAttachment") !== "undefined");
+check("file size cap defined", read("typeof AS_MAX_FILE_BYTES") === "number");
+
+async function sendWithAttachment(attJs, message) {
+  w.eval(`
+    window.__sentBody = null;
+    window.fetch = async (url, opts) => {
+      window.__sentBody = JSON.parse(opts.body);
+      return { ok: true, json: async () => ({ content: [{ type: "text", text: "Got it." }] }) };
+    };
+    STATE.settings.assistantProxyUrl = "https://example.workers.dev";
+    asLoading = false; asApiMessages = []; asMessages = [];
+    asAttachment = ${attJs};
+  `);
+  await read("assistantSend(" + JSON.stringify(message) + ")");
+  await wait(80);
+  const raw = w.eval("JSON.stringify(window.__sentBody && window.__sentBody.messages || null)");
+  const parsed = raw ? JSON.parse(raw) : null;
+  return (parsed && parsed[0]) || {};
+}
+
+if (read("typeof assistantSend") === "function") {
+  const img = await sendWithAttachment(
+    '{ kind:"image", base64:"AAAA", mediaType:"image/png", name:"t.png", previewSrc:"data:image/png;base64,AAAA" }',
+    "what is this");
+  const ib = Array.isArray(img.content) ? img.content : [];
+  check("image sent as content blocks", ib.length > 0);
+  check("image block present", ib.some((b) => b.type === "image" && b.source && b.source.data === "AAAA"));
+  check("text travels with the image", ib.some((b) => b.type === "text" && b.text === "what is this"));
+  check("attachment cleared after send", w.eval("asAttachment") === null);
+
+  const pdf = await sendWithAttachment(
+    '{ kind:"pdf", base64:"BBBB", mediaType:"application/pdf", name:"bill.pdf", previewSrc:null }', "");
+  const pb = Array.isArray(pdf.content) ? pdf.content : [];
+  check("pdf sent as document block",
+    pb.some((b) => b.type === "document" && b.source && b.source.media_type === "application/pdf"));
+  check("empty message gets a default prompt", pb.some((b) => b.type === "text" && b.text.length > 0));
+}
+
+// --- 8. Blue Bonnet identity & boundaries ---------------------------------
+check("assistant is Blue Bonnet", read("APP.assistantName") === "Blue Bonnet");
+check("no stray 'Anchor' left in the UI", !/Anchor/.test(d.body.innerHTML));
+if (typeof read("ASSISTANT_SYSTEM") === "string") {
+  const sys = read("ASSISTANT_SYSTEM");
+  check("hard boundary on relationship verdicts present", /HARD BOUNDARY/.test(sys));
+  check("no-guilt tone rule still present", /never any guilt/i.test(sys));
+  check("never-delete rule still present", /NEVER delete/.test(sys));
+  check("attachment guidance present", /ATTACHMENTS/.test(sys));
+  check("shutdown vs meltdown knowledge present", /Shutdown:/.test(sys) && /Meltdown:/.test(sys));
+}
+// Guard against the interpolation bug: template text must never reach the UI.
+check("no template text leaked into UI", !/escapeHtml\(APP\.assistantName\)/.test(
+  (() => { const c = d.body.cloneNode(true); c.querySelectorAll("script,style").forEach((e) => e.remove()); return c.textContent; })()
+));
+
 /* ==========================================================================
    Done
    ========================================================================== */

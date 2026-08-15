@@ -53,7 +53,13 @@ export default {
     const anthropicBody = {
       model: "claude-sonnet-4-5-20250929",
       max_tokens: incoming.max_tokens || 1000,
-      system: incoming.system || "",
+      // Prompt caching: the system prompt (persona + neurodivergent knowledge)
+      // is large and near-identical every call, so it's marked cacheable —
+      // repeat reads bill at ~10% of normal input price. Output is unchanged;
+      // this is purely a billing optimisation.
+      system: typeof incoming.system === "string" && incoming.system
+        ? [{ type: "text", text: incoming.system, cache_control: { type: "ephemeral" } }]
+        : (incoming.system || ""),
       messages: incoming.messages || [],
     };
     if (Array.isArray(incoming.tools) && incoming.tools.length > 0) {
